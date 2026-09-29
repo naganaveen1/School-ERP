@@ -6,7 +6,7 @@ from backend.app.models.user import User
 from backend.app.models.teacher import Teacher
 from backend.app.models.department import Department
 from backend.app.schemas.teacher import TeacherCreate, TeacherUpdate, TeacherResponse
-from backend.app.schemas.user import UserCreate
+from backend.app.schemas.user import UserCreate, UserResponse
 from backend.app.services.auth_service import auth_service
 from backend.app.utils.permissions import require_roles, get_current_active_user
 from backend.app.utils.pagination import paginate_query
