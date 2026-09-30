@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = str(BASE_DIR / "uploads")
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: str = "pdf,doc,docx,xls,xlsx,ppt,pptx,txt,jpg,jpeg,png,zip"
+    RAZORPAY_KEY_ID: str = "rzp_test_TiIP72t6cBs3QV"
+    RAZORPAY_KEY_SECRET: str = "rh15ojbKCd3WRWSBvu5PhnO3"
 
     class Config:
         env_file = ".env"

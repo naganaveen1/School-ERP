@@ -13,6 +13,8 @@ class Fee(Base):
     academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="SET NULL"), nullable=True)
     amount = Column(Float, nullable=False)
     due_date = Column(Date, nullable=False)
+    installment_name = Column(String(50), default="Annual", nullable=False)  # e.g., Semester 1, Installment 1, Annual
+    installment_number = Column(Integer, default=1, nullable=False)
     description = Column(String(255), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
