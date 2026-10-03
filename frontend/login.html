@@ -101,9 +101,17 @@
       alertEl.classList.remove('d-none');
     }
 
+    const demoPasswords = {
+      admin: 'admin123',
+      principal: 'principal123',
+      teacher: 'teacher123',
+      student: 'student123',
+      parent: 'parent123'
+    };
+
     function fillDemo(role) {
       document.getElementById('username').value = role;
-      document.getElementById('password').value = 'Password123!';
+      document.getElementById('password').value = demoPasswords[role] || (role + '123');
       document.getElementById('login-form').requestSubmit();
     }
 

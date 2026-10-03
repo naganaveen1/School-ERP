@@ -9,6 +9,8 @@ class FeeBase(BaseModel):
     academic_year_id: Optional[int] = None
     amount: float
     due_date: date
+    installment_name: Optional[str] = "Annual"
+    installment_number: Optional[int] = 1
     description: Optional[str] = None
 
 class FeeCreate(FeeBase):
@@ -21,6 +23,8 @@ class FeeUpdate(BaseModel):
     academic_year_id: Optional[int] = None
     amount: Optional[float] = None
     due_date: Optional[date] = None
+    installment_name: Optional[str] = None
+    installment_number: Optional[int] = None
     description: Optional[str] = None
 
 class FeeResponse(FeeBase):
@@ -36,6 +40,7 @@ class PaymentCreate(BaseModel):
     fee_id: int
     student_id: int
     amount_paid: float
+    discount_amount: Optional[float] = 0.0
     payment_date: Optional[date] = None
     payment_method: str = "Cash"
     payment_status: str = "PAID"
@@ -47,11 +52,15 @@ class PaymentResponse(BaseModel):
     fee_id: int
     student_id: int
     amount_paid: float
+    discount_amount: float = 0.0
     payment_date: date
     payment_method: str
     payment_status: str
+    reconciliation_status: str = "UNRECONCILED"
     transaction_id: Optional[str] = None
     remarks: Optional[str] = None
+    refund_reason: Optional[str] = None
+    refunded_at: Optional[datetime] = None
     fee_title: Optional[str] = None
     student_name: Optional[str] = None
     admission_number: Optional[str] = None
@@ -79,3 +88,23 @@ class StudentFeeSummary(BaseModel):
     total_paid: float
     remaining_balance: float
     items: List[StudentFeeItem]
+
+class RazorpayCreateOrderRequest(BaseModel):
+    fee_id: int
+    amount: float
+    student_id: Optional[int] = None
+
+class RazorpayCreateOrderResponse(BaseModel):
+    order_id: str
+    amount: int  # in paise
+    currency: str = "INR"
+    key_id: str
+    fee_id: int
+
+class RazorpayVerifyRequest(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+    fee_id: int
+    student_id: int
+    amount_paid: float

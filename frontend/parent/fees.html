@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/frontend/css/dashboard.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 <body>
   <div class="app-wrapper">
@@ -36,7 +37,7 @@
             <div class="stat-card">
               <div class="stat-info">
                 <span class="stat-label">Total Assigned Tuition</span>
-                <span class="stat-value text-dark" id="fee-total">$0.00</span>
+                <span class="stat-value text-dark" id="fee-total">₹0.00</span>
                 <span class="stat-subtext">Total academic dues</span>
               </div>
               <div class="stat-icon info">💳</div>
@@ -47,7 +48,7 @@
             <div class="stat-card">
               <div class="stat-info">
                 <span class="stat-label">Cleared Payments</span>
-                <span class="stat-value text-success" id="fee-paid">$0.00</span>
+                <span class="stat-value text-success" id="fee-paid">₹0.00</span>
                 <span class="stat-subtext">Deposited tuition</span>
               </div>
               <div class="stat-icon success">✅</div>
@@ -58,7 +59,7 @@
             <div class="stat-card">
               <div class="stat-info">
                 <span class="stat-label">Outstanding Balance</span>
-                <span class="stat-value text-danger" id="fee-balance">$0.00</span>
+                <span class="stat-value text-danger" id="fee-balance">₹0.00</span>
                 <span class="stat-subtext">Remaining balance due</span>
               </div>
               <div class="stat-icon warning">⚠️</div>
@@ -77,10 +78,11 @@
                 <th>Paid Amount</th>
                 <th>Remaining Due</th>
                 <th>Payment Status</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="child-fees-tbody">
-              <tr><td colspan="6" class="text-center py-4 text-muted">Select a child to view fee ledger...</td></tr>
+              <tr><td colspan="7" class="text-center py-4 text-muted">Select a child to view fee ledger...</td></tr>
             </tbody>
           </table>
         </div>
@@ -92,7 +94,7 @@
   <script src="/frontend/js/api.js"></script>
   <script src="/frontend/js/auth.js"></script>
   <script src="/frontend/js/permissions.js"></script>
-  <script src="/frontend/js/utils.js"></script>
+  <script src="/frontend/js/utils.js?v=2"></script>
   <script src="/frontend/js/components.js"></script>
   <script>
     if (permissions.enforcePageAccess(['PARENT'])) {
@@ -127,7 +129,7 @@
       if (!childId) return;
 
       const tbody = document.getElementById('child-fees-tbody');
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Loading fee ledger...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Loading fee ledger...</td></tr>';
 
       try {
         const data = await api.get(`/parent/child/${childId}/fees`);
@@ -138,22 +140,84 @@
         }
 
         if (!data.items || data.items.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" class="table-empty-state">No fee dues configured for this child.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="table-empty-state">No fee dues configured for this child.</td></tr>';
           return;
         }
 
-        tbody.innerHTML = data.items.map(item => `
-          <tr>
-            <td><strong>${item.title}</strong></td>
-            <td><span class="badge bg-secondary">${item.fee_type}</span></td>
-            <td>${utils.formatCurrency(item.total_amount)}</td>
-            <td class="text-success fw-bold">${utils.formatCurrency(item.amount_paid)}</td>
-            <td class="text-danger fw-bold">${utils.formatCurrency(item.balance)}</td>
-            <td>${utils.getStatusBadge(item.status)}</td>
-          </tr>
-        `).join('');
+        tbody.innerHTML = data.items.map(item => {
+          const isPending = item.balance > 0;
+          const payBtn = isPending
+            ? `<button class="btn btn-sm btn-success fw-bold" onclick="payChildFeeWithRazorpay(${item.fee_id}, ${item.balance}, '${item.title.replace(/'/g, "\\'")}', ${childId})">💳 Pay Online</button>`
+            : `<span class="badge bg-success">Cleared</span>`;
+
+          return `
+            <tr>
+              <td><strong>${item.title}</strong></td>
+              <td><span class="badge bg-secondary">${item.fee_type}</span></td>
+              <td>${utils.formatCurrency(item.total_amount)}</td>
+              <td class="text-success fw-bold">${utils.formatCurrency(item.amount_paid)}</td>
+              <td class="text-danger fw-bold">${utils.formatCurrency(item.balance)}</td>
+              <td>${utils.getStatusBadge(item.status)}</td>
+              <td>${payBtn}</td>
+            </tr>
+          `;
+        }).join('');
       } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-danger py-4 text-center">${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-danger py-4 text-center">${e.message}</td></tr>`;
+      }
+    }
+
+    async function payChildFeeWithRazorpay(feeId, amount, feeTitle, studentId) {
+      if (!window.Razorpay) {
+        utils.showToast('Razorpay Checkout SDK failed to load.', 'danger');
+        return;
+      }
+
+      try {
+        utils.showToast('Initiating Razorpay payment order...', 'info');
+        const orderRes = await api.post('/fees/razorpay/create-order', {
+          fee_id: feeId,
+          amount: amount,
+          student_id: studentId
+        });
+
+        const user = auth.getUser() || {};
+        const options = {
+          key: orderRes.key_id,
+          amount: orderRes.amount,
+          currency: orderRes.currency,
+          name: "Dharani College of Nursing",
+          description: `Child Fee Payment: ${feeTitle}`,
+          order_id: orderRes.order_id,
+          prefill: {
+            name: user.full_name || "",
+            email: user.email || "",
+            contact: user.phone || ""
+          },
+          theme: { color: "#0d6efd" },
+          handler: async function (response) {
+            utils.showToast('Payment successful! Verifying...', 'info');
+            try {
+              await api.post('/fees/razorpay/verify', {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                fee_id: feeId,
+                student_id: studentId,
+                amount_paid: amount
+              });
+              utils.showToast('🎉 Child fee payment verified & recorded!', 'success');
+              loadChildFees();
+            } catch (e) {
+              utils.showToast(`Verification failed: ${e.message}`, 'danger');
+            }
+          }
+        };
+
+        const rzp = new Razorpay(options);
+        rzp.open();
+      } catch (e) {
+        utils.showToast(e.message || 'Failed to initiate Razorpay checkout', 'danger');
       }
     }
   </script>

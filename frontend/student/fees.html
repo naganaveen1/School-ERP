@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/frontend/css/dashboard.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 <body>
   <div class="app-wrapper">
@@ -34,7 +35,7 @@
             <div class="stat-card">
               <div class="stat-info">
                 <span class="stat-label">Total Assigned Fees</span>
-                <span class="stat-value text-dark" id="fee-summary-total">$0.00</span>
+                <span class="stat-value text-dark" id="fee-summary-total">₹0.00</span>
                 <span class="stat-subtext">Cumulative tuition &amp; dues</span>
               </div>
               <div class="stat-icon info">💳</div>
@@ -45,7 +46,7 @@
             <div class="stat-card">
               <div class="stat-info">
                 <span class="stat-label">Total Amount Paid</span>
-                <span class="stat-value text-success" id="fee-summary-paid">$0.00</span>
+                <span class="stat-value text-success" id="fee-summary-paid">₹0.00</span>
                 <span class="stat-subtext">Cleared receipts</span>
               </div>
               <div class="stat-icon success">✅</div>
@@ -56,7 +57,7 @@
             <div class="stat-card">
               <div class="stat-info">
                 <span class="stat-label">Outstanding Balance</span>
-                <span class="stat-value text-danger" id="fee-summary-balance">$0.00</span>
+                <span class="stat-value text-danger" id="fee-summary-balance">₹0.00</span>
                 <span class="stat-subtext">Pending payment</span>
               </div>
               <div class="stat-icon warning">⚠️</div>
@@ -75,10 +76,11 @@
                 <th>Paid Amount</th>
                 <th>Outstanding Balance</th>
                 <th>Status</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="student-fees-tbody">
-              <tr><td colspan="6" class="text-center py-4 text-muted">Loading fee records...</td></tr>
+              <tr><td colspan="7" class="text-center py-4 text-muted">Loading fee records...</td></tr>
             </tbody>
           </table>
         </div>
@@ -90,7 +92,7 @@
   <script src="/frontend/js/api.js"></script>
   <script src="/frontend/js/auth.js"></script>
   <script src="/frontend/js/permissions.js"></script>
-  <script src="/frontend/js/utils.js"></script>
+  <script src="/frontend/js/utils.js?v=2"></script>
   <script src="/frontend/js/components.js"></script>
   <script src="/frontend/js/fees.js"></script>
   <script>
