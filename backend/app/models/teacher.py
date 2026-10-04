@@ -1,15 +1,19 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.app.database import Base
+from backend.app.models.tenant import TenantOwnedMixin
 
-class Teacher(Base):
+class Teacher(TenantOwnedMixin, Base):
     __tablename__ = "teachers"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "employee_id", name="uq_teachers_tenant_employee"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True)
-    employee_id = Column(String(50), unique=True, nullable=False, index=True)
+    employee_id = Column(String(50), nullable=False, index=True)
     qualification = Column(String(100), nullable=True)
     designation = Column(String(100), default="Teacher")
     joining_date = Column(Date, nullable=True)

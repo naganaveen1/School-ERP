@@ -42,7 +42,7 @@ def create_class(
 If an unauthenticated request is received, a `401 Unauthorized` is raised. If the user's role is not within the authorized array, a `403 Forbidden` is raised.
 
 ### Resource Ownership Checks
-Role checks alone are not sufficient for multi-tenant isolation. The system enforces resource ownership checks at the service/database layer:
+Role checks alone are not sufficient for multi-tenant isolation. Some routes enforce resource ownership checks at the service/database layer, including these examples. Coverage is incomplete; the current application must not be used for multiple schools. See [the architecture gap analysis](ARCHITECTURE_GAP_ANALYSIS.md).
 
 1. **Student Isolation:**
    Students can only access their own attendance, grades, and submissions. Routes automatically bind to `current_user.student_profile.id`:

@@ -18,7 +18,7 @@ def get_departments(
 @router.post("", response_model=DepartmentResponse)
 def create_department(
     dept_in: DepartmentCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     if db.query(Department).filter(Department.name == dept_in.name).first():
@@ -40,7 +40,7 @@ def create_department(
 def update_department(
     dept_id: int,
     dept_in: DepartmentCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     dept = db.query(Department).filter(Department.id == dept_id).first()
@@ -57,7 +57,7 @@ def update_department(
 @router.delete("/{dept_id}")
 def delete_department(
     dept_id: int,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     dept = db.query(Department).filter(Department.id == dept_id).first()

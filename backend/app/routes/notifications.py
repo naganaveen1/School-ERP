@@ -39,9 +39,11 @@ def mark_all_notifications_read(
 @router.post("", response_model=NotificationResponse)
 def create_notification(
     notif_in: NotificationCreate,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
+    if not db.query(User.id).filter(User.id == notif_in.user_id).first():
+        raise HTTPException(status_code=404, detail="Recipient not found")
     notif = notification_service.create_notification(
         db=db,
         user_id=notif_in.user_id,

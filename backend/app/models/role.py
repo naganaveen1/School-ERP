@@ -3,11 +3,14 @@ from sqlalchemy import Column, Integer, String
 from backend.app.database import Base
 
 class RoleEnum(str, enum.Enum):
-    ADMIN = "ADMIN"
+    SCHOOL_ADMIN = "SCHOOL_ADMIN"
     PRINCIPAL = "PRINCIPAL"
     TEACHER = "TEACHER"
     STUDENT = "STUDENT"
     PARENT = "PARENT"
+    PLATFORM_SUPER_ADMIN = "PLATFORM_SUPER_ADMIN"
+    PLATFORM_SUPPORT = "PLATFORM_SUPPORT"
+    PLATFORM_BILLING = "PLATFORM_BILLING"
 
 class Role(Base):
     __tablename__ = "roles"

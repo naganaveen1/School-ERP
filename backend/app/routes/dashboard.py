@@ -13,7 +13,7 @@ def get_dashboard(
     db: Session = Depends(get_db)
 ):
     role = current_user.role
-    if role == "ADMIN":
+    if role == "SCHOOL_ADMIN":
         return report_service.get_admin_dashboard(db)
     elif role == "PRINCIPAL":
         return report_service.get_principal_dashboard(db)

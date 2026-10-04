@@ -42,7 +42,7 @@ def get_subjects(
 @router.post("", response_model=SubjectResponse)
 def create_subject(
     subj_in: SubjectCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     subj = Subject(
@@ -67,7 +67,7 @@ def create_subject(
 def update_subject(
     subject_id: int,
     subj_in: SubjectCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     subj = db.query(Subject).filter(Subject.id == subject_id).first()
@@ -92,7 +92,7 @@ def update_subject(
 @router.delete("/{subject_id}")
 def delete_subject(
     subject_id: int,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     subj = db.query(Subject).filter(Subject.id == subject_id).first()

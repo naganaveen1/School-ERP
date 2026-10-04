@@ -9,7 +9,7 @@ const dashboard = {
     try {
       const data = await api.get('/dashboard');
       switch (user.role) {
-        case 'ADMIN':
+        case 'SCHOOL_ADMIN':
           this.renderAdminDashboard(data);
           break;
         case 'PRINCIPAL':
@@ -43,6 +43,11 @@ const dashboard = {
     setText('total-classes', data.total_classes || 0);
     setText('fees-collected', utils.formatCurrency(data.total_fees_collected || 0));
     setText('att-percentage', `${(data.today_attendance && data.today_attendance.percentage) || 0}%`);
+    const yearBadge = document.getElementById('active-academic-year');
+    if (yearBadge && data.academic_year) {
+      yearBadge.textContent = `Session: ${data.academic_year}`;
+      yearBadge.hidden = false;
+    }
 
     // Render Recent Notices
     const noticesList = document.getElementById('recent-notices-list');
@@ -54,8 +59,8 @@ const dashboard = {
           <li class="activity-item">
             <span class="activity-dot"></span>
             <div class="activity-content">
-              <div class="activity-title">${n.title}</div>
-              <div class="activity-meta">Target: <strong>${n.target_role}</strong> &bull; ${utils.formatDate(n.publish_date)}</div>
+              <div class="activity-title">${components.escapeHTML(n.title)}</div>
+              <div class="activity-meta">Target: <strong>${components.escapeHTML(n.target_role)}</strong> &bull; ${utils.formatDate(n.publish_date)}</div>
             </div>
           </li>
         `).join('');
@@ -72,8 +77,8 @@ const dashboard = {
           <li class="activity-item">
             <span class="activity-dot" style="background:#06b6d4;"></span>
             <div class="activity-content">
-              <div class="activity-title">${a.action} - ${a.entity || ''}</div>
-              <div class="activity-meta">${a.details || ''} &bull; ${utils.formatDateTime(a.timestamp)}</div>
+              <div class="activity-title">${components.escapeHTML(a.action)} - ${components.escapeHTML(a.entity)}</div>
+              <div class="activity-meta">${components.escapeHTML(a.details)} &bull; ${utils.formatDateTime(a.timestamp)}</div>
             </div>
           </li>
         `).join('');
@@ -87,13 +92,18 @@ const dashboard = {
       const absent = data.today_attendance.absent || 0;
       const others = Math.max(0, (data.today_attendance.total || 0) - present - absent);
 
+      if (!data.today_attendance.total) {
+        chartCanvas.parentElement.innerHTML = '<div class="empty-state"><h3>No attendance recorded today</h3><p>Attendance will appear here once teachers submit it.</p></div>';
+        return;
+      }
+
       new Chart(chartCanvas, {
         type: 'doughnut',
         data: {
           labels: ['Present', 'Absent', 'Other'],
           datasets: [{
             data: [present, absent, others],
-            backgroundColor: ['#10b981', '#ef4444', '#f59e0b']
+            backgroundColor: ['#18734d', '#bb453e', '#a65c16']
           }]
         },
         options: {
@@ -125,7 +135,7 @@ const dashboard = {
         <li class="activity-item">
           <span class="activity-dot" style="background:${l.status === 'APPROVED' ? '#10b981' : '#f59e0b'}"></span>
           <div class="activity-content">
-            <div class="activity-title">${l.user} (${l.role}) - ${l.type}</div>
+            <div class="activity-title">${components.escapeHTML(l.user)} (${components.escapeHTML(l.role)}) - ${components.escapeHTML(l.type)}</div>
             <div class="activity-meta">Status: ${utils.getStatusBadge(l.status)}</div>
           </div>
         </li>
@@ -138,8 +148,8 @@ const dashboard = {
         <li class="activity-item">
           <span class="activity-dot" style="background:#ef4444"></span>
           <div class="activity-content">
-            <div class="activity-title">${c.title}</div>
-            <div class="activity-meta">By: ${c.user} &bull; ${utils.getStatusBadge(c.status)}</div>
+            <div class="activity-title">${components.escapeHTML(c.title)}</div>
+            <div class="activity-meta">By: ${components.escapeHTML(c.user)} &bull; ${utils.getStatusBadge(c.status)}</div>
           </div>
         </li>
       `).join('') || '<li class="text-muted small py-2">No complaints filed</li>';
@@ -181,8 +191,8 @@ const dashboard = {
         <li class="activity-item">
           <span class="activity-dot"></span>
           <div class="activity-content">
-            <div class="activity-title"><a href="/frontend/student/assignments.html">${a.title}</a></div>
-            <div class="activity-meta">${a.subject} &bull; Due: ${utils.formatDate(a.due_date)}</div>
+            <div class="activity-title"><a href="/frontend/student/assignments.html">${components.escapeHTML(a.title)}</a></div>
+            <div class="activity-meta">${components.escapeHTML(a.subject)} &bull; Due: ${utils.formatDate(a.due_date)}</div>
           </div>
         </li>
       `).join('') || '<li class="text-muted small py-2">No upcoming assignments.</li>';
@@ -195,7 +205,7 @@ const dashboard = {
         <li class="activity-item">
           <span class="activity-dot" style="background:#10b981"></span>
           <div class="activity-content">
-            <div class="activity-title">${r.subject}: ${r.marks} / ${r.max} (${utils.getGradeBadge(r.grade)})</div>
+            <div class="activity-title">${components.escapeHTML(r.subject)}: ${components.escapeHTML(r.marks)} / ${components.escapeHTML(r.max)} (${utils.getGradeBadge(r.grade)})</div>
           </div>
         </li>
       `).join('') || '<li class="text-muted small py-2">No exam results recorded yet.</li>';
@@ -216,10 +226,10 @@ const dashboard = {
         <div class="col-md-6 mb-3">
           <div class="card card-custom h-100 p-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="fw-bold mb-0 text-dark">${c.name}</h6>
-              <span class="badge bg-primary">${c.admission_number}</span>
+              <h6 class="fw-bold mb-0 text-dark">${components.escapeHTML(c.name)}</h6>
+              <span class="badge bg-primary">${components.escapeHTML(c.admission_number)}</span>
             </div>
-            <p class="text-secondary small mb-3">Class: ${c.class_name}</p>
+            <p class="text-secondary small mb-3">Class: ${components.escapeHTML(c.class_name)}</p>
             <div class="row g-2 text-center">
               <div class="col-6">
                 <div class="p-2 border rounded bg-light">

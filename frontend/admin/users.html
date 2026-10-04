@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/frontend/css/forms.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
 </head>
 <body>
   <div class="app-wrapper">
@@ -39,7 +41,7 @@
             <div class="col-md-4">
               <select id="user-role-filter" class="form-select">
                 <option value="">All Roles</option>
-                <option value="ADMIN">ADMIN</option>
+                <option value="SCHOOL_ADMIN">ADMIN</option>
                 <option value="PRINCIPAL">PRINCIPAL</option>
                 <option value="TEACHER">TEACHER</option>
                 <option value="STUDENT">STUDENT</option>
@@ -103,7 +105,7 @@
                   <div class="mb-3">
                     <label class="form-label">Role</label>
                     <select name="role" class="form-select" required>
-                      <option value="ADMIN">ADMIN</option>
+                      <option value="SCHOOL_ADMIN">ADMIN</option>
                       <option value="PRINCIPAL">PRINCIPAL</option>
                       <option value="TEACHER">TEACHER</option>
                       <option value="STUDENT">STUDENT</option>
@@ -138,7 +140,7 @@
     let search = '';
     let role = '';
 
-    if (permissions.enforcePageAccess(['ADMIN'])) {
+    if (permissions.enforcePageAccess(['SCHOOL_ADMIN'])) {
       components.renderLayout('User Accounts');
       loadUsers(1);
 

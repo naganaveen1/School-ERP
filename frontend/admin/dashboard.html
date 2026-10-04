@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/frontend/css/dashboard.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
 </head>
 <body>
   <div class="app-wrapper">
@@ -24,7 +26,7 @@
             <div class="page-subtitle">School and College Overview &amp; Live Statistics</div>
           </div>
           <div>
-            <span class="badge bg-primary px-3 py-2 fs-6">Session: 2025-2026</span>
+            <span class="badge bg-primary px-3 py-2" id="active-academic-year" hidden></span>
           </div>
         </div>
 
@@ -153,7 +155,7 @@
   <script src="/frontend/js/components.js"></script>
   <script src="/frontend/js/dashboard.js"></script>
   <script>
-    if (permissions.enforcePageAccess(['ADMIN'])) {
+    if (permissions.enforcePageAccess(['SCHOOL_ADMIN'])) {
       components.renderLayout('Admin Dashboard');
       dashboard.init();
     }

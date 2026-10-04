@@ -12,19 +12,22 @@ from backend.app.models.result import Result
 from backend.app.models.student import Student
 from backend.app.models.class_model import ClassModel
 from backend.app.models.exam import Exam
-from backend.app.utils.permissions import require_roles, get_current_active_user
+from backend.app.utils.permissions import require_roles, get_current_active_user, require_feature
+from backend.app.utils.school_access import teacher_class_ids, teacher_subject_ids
 
-router = APIRouter(prefix="/reports", tags=["Reports"])
+router = APIRouter(prefix="/reports", tags=["Reports"], dependencies=[Depends(require_feature("reports"))])
 
 @router.get("/attendance")
 def attendance_report(
     class_id: Optional[int] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL", "TEACHER"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL", "TEACHER"])),
     db: Session = Depends(get_db)
 ):
     query = db.query(Attendance)
+    if current_user.role == "TEACHER":
+        query = query.filter(Attendance.class_id.in_(teacher_class_ids(current_user)))
     if class_id:
         query = query.filter(Attendance.class_id == class_id)
     if start_date:
@@ -50,7 +53,7 @@ def attendance_report(
 @router.get("/fees")
 def fee_report(
     class_id: Optional[int] = None,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     fee_query = db.query(Fee)
@@ -67,22 +70,31 @@ def fee_report(
             num_students = db.query(Student).count()
             total_fees_expected += fee.amount * num_students
 
-    total_collected = db.query(func.sum(Payment.amount_paid)).scalar() or 0.0
+    payment_query = db.query(
+        func.sum(Payment.amount_paid), func.sum(Payment.discount_amount)
+    ).filter(Payment.payment_status.in_(["PAID", "PARTIAL"]))
+    if class_id:
+        payment_query = payment_query.join(Student).filter(Student.class_id == class_id)
+    total_collected, total_discounts = payment_query.one()
+    total_collected = float(total_collected or 0)
+    total_discounts = float(total_discounts or 0)
 
     return {
         "total_fees_expected": round(total_fees_expected, 2),
-        "total_collected": round(float(total_collected), 2),
-        "total_outstanding": round(max(0.0, total_fees_expected - float(total_collected)), 2)
+        "total_collected": round(total_collected, 2),
+        "total_outstanding": round(max(0.0, total_fees_expected - total_collected - total_discounts), 2)
     }
 
 @router.get("/academic")
 def academic_performance_report(
     exam_id: Optional[int] = None,
     class_id: Optional[int] = None,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL", "TEACHER"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL", "TEACHER"])),
     db: Session = Depends(get_db)
 ):
     query = db.query(Result)
+    if current_user.role == "TEACHER":
+        query = query.filter(Result.subject_id.in_(teacher_subject_ids(current_user)))
     if exam_id:
         query = query.filter(Result.exam_id == exam_id)
     if class_id:

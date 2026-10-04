@@ -2,8 +2,9 @@ from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Uni
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.app.database import Base
+from backend.app.models.tenant import TenantOwnedMixin
 
-class Result(Base):
+class Result(TenantOwnedMixin, Base):
     __tablename__ = "results"
 
     id = Column(Integer, primary_key=True, index=True)

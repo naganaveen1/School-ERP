@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>School subscription · School ERP</title>
+  <link rel="stylesheet" href="/frontend/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
+  <script src="/frontend/js/theme.js"></script>
+  <style>
+    .billing-shell{max-width:1100px;margin:auto;padding:clamp(20px,4vw,48px)}
+    .billing-top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:32px}
+    .billing-top h1{font-size:clamp(1.55rem,3vw,2.2rem);letter-spacing:-.04em;margin:0}
+    .billing-summary{padding:24px;margin-bottom:28px}.billing-summary h2{font-size:1.15rem}
+    .billing-plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.billing-plan{padding:22px;display:flex;flex-direction:column;gap:12px}
+    .billing-plan h3{font-size:1.14rem;font-weight:700;margin:0}.billing-price{font-size:1.7rem;font-weight:750;letter-spacing:-.04em}
+    .billing-plan .btn{margin-top:auto}.billing-invoices{overflow:auto}.billing-invoices table{min-width:590px}
+    .billing-feedback{min-height:24px;margin:12px 0}.billing-feedback.error{color:var(--danger)}.billing-feedback.success{color:var(--success)}
+    @media(max-width:500px){.billing-summary{padding:18px}.billing-plan{padding:18px}}
+  </style>
+</head>
+<body>
+  <main class="billing-shell">
+    <header class="billing-top"><div><p class="text-secondary mb-1" id="school-name">School workspace</p><h1>Subscription & billing</h1></div><div class="d-flex gap-2"><a id="back-link" href="/frontend/admin/dashboard.html" class="btn btn-outline-secondary">School dashboard</a><button class="btn btn-outline-secondary" onclick="auth.logout()">Sign out</button></div></header>
+    <p id="feedback" class="billing-feedback" role="status" aria-live="polite"></p>
+    <section class="card billing-summary" aria-label="Current subscription"><h2>Current subscription</h2><p id="subscription-status" class="mb-2">Loading…</p><p id="subscription-date" class="text-secondary mb-3"></p><button id="cancel-button" class="btn btn-outline-secondary btn-sm" type="button" hidden>Cancel subscription</button></section>
+    <section aria-labelledby="plans-heading"><div class="mb-3"><h2 id="plans-heading" class="page-title">Choose a plan</h2><p class="page-subtitle">Your school will see the price before the payment provider opens.</p></div><div id="plans" class="billing-plans" aria-busy="true"><div class="card billing-plan skeleton">Loading plans…</div></div></section>
+    <section class="mt-5" aria-labelledby="invoices-heading"><h2 id="invoices-heading" class="page-title">Invoices</h2><div class="card p-3 billing-invoices"><table class="table mb-0"><thead><tr><th>Invoice</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody id="invoices"><tr><td colspan="4">Loading invoices…</td></tr></tbody></table></div></section>
+  </main>
+  <script src="/frontend/js/api.js"></script><script src="/frontend/js/auth.js"></script>
+  <script>
+    if (!auth.requireAuth(['SCHOOL_ADMIN'])) throw new Error('School administrator required');
+    const current = auth.getUser();
+    document.getElementById('school-name').textContent = current.school_name || 'School workspace';
+    document.getElementById('back-link').hidden = !!current.billing_only;
+    const feedback = (message, error=false) => { const el=document.getElementById('feedback'); el.textContent=message; el.className='billing-feedback '+(error?'error':'success'); };
+    const node = (tag,text) => { const el=document.createElement(tag); el.textContent=text; return el; };
+    const formatDate = date => date ? new Date(date).toLocaleDateString() : '—';
+    async function refresh() {
+      try {
+        const [subscription, plans, invoices] = await Promise.all([api.get('/saas/subscription'), api.get('/saas/plans'), api.get('/saas/invoices')]);
+        const plan = plans.find(item => item.id === subscription.plan_id);
+        document.getElementById('subscription-status').textContent = `${subscription.status.replaceAll('_',' ')} · ${subscription.plan_name || plan?.name || 'Current plan'}`;
+        document.getElementById('subscription-date').textContent = subscription.status === 'TRIALING' ? `Trial ends ${formatDate(subscription.trial_end)}` : `Current period ends ${formatDate(subscription.current_period_end)}`;
+        const cancel = document.getElementById('cancel-button'); cancel.hidden = !['TRIALING','ACTIVE','PAST_DUE','PAUSED'].includes(subscription.status);
+        const container = document.getElementById('plans'); container.replaceChildren(); container.removeAttribute('aria-busy');
+        if (!plans.length) container.append(node('p','No plans are available. Contact platform support.'));
+        plans.forEach(item => {
+          const card = document.createElement('article'); card.className='card billing-plan';
+          card.append(node('h3',item.name), node('p',item.description || 'School subscription plan'));
+          const price = node('div',`₹${item.price} / ${item.billing_interval.toLowerCase()}`); price.className='billing-price'; card.append(price);
+          card.append(node('p',item.max_students ? `Up to ${item.max_students} students` : 'Unlimited students'));
+          const button = node('button',Number(item.price) > 0 ? 'Continue to payment' : 'Contact platform');
+          button.type='button'; button.className='btn btn-primary'; button.disabled = Number(item.price) <= 0;
+          button.addEventListener('click',() => startPayment(item,button)); card.append(button); container.append(card);
+        });
+        const table = document.getElementById('invoices'); table.replaceChildren();
+        if (!invoices.length) { const tr=document.createElement('tr'); const td=node('td','No subscription invoices yet.'); td.colSpan=4; tr.append(td); table.append(tr); }
+        invoices.forEach(invoice => { const tr=document.createElement('tr'); [invoice.id,formatDate(invoice.created_at),`₹${invoice.amount}`,invoice.status].forEach(value => tr.append(node('td',value))); table.append(tr); });
+        if (!current.billing_only && subscription.status === 'ACTIVE') document.getElementById('back-link').hidden = false;
+      } catch(error) { feedback(error.message || 'Unable to load subscription information.',true); }
+    }
+    function providerScript() {
+      if (window.Razorpay) return Promise.resolve();
+      return new Promise((resolve,reject) => { const script=document.createElement('script'); script.src='https://checkout.razorpay.com/v1/checkout.js'; script.onload=resolve; script.onerror=() => reject(new Error('Payment provider could not be loaded.')); document.head.append(script); });
+    }
+    async function startPayment(plan,button) {
+      button.disabled=true;
+      try {
+        const order=await api.post('/saas/checkout',{plan_id:plan.id});
+        await providerScript();
+        const checkout=new Razorpay({key:order.key_id,amount:order.amount,currency:order.currency,
+          name:current.school_name || 'School ERP',description:`${plan.name} subscription`,order_id:order.order_id,
+          handler:async result => { try { await api.post('/saas/verify',result); feedback('Payment verified. Subscription activated.'); current.billing_only=false; localStorage.setItem('user',JSON.stringify(current)); await refresh(); } catch(error) { feedback(error.message || 'Payment verification failed.',true); } },
+          modal:{ondismiss:() => { button.disabled=false; }} });
+        checkout.on('payment.failed',() => feedback('Payment failed. You can retry the checkout.',true)); checkout.open();
+      } catch(error) { feedback(error.message || 'Unable to start checkout.',true); button.disabled=false; }
+    }
+    document.getElementById('cancel-button').addEventListener('click',async () => {
+      if (!window.confirm('Cancel now? School access ends immediately.')) return;
+      try { await api.post('/saas/cancel'); feedback('Subscription cancelled.'); current.billing_only=true; localStorage.setItem('user',JSON.stringify(current)); document.getElementById('back-link').hidden=true; await refresh(); } catch(error) { feedback(error.message,true); }
+    });
+    refresh();
+  </script>
+</body>
+</html>

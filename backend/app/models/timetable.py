@@ -2,8 +2,9 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.app.database import Base
+from backend.app.models.tenant import TenantOwnedMixin
 
-class Timetable(Base):
+class Timetable(TenantOwnedMixin, Base):
     __tablename__ = "timetables"
 
     id = Column(Integer, primary_key=True, index=True)

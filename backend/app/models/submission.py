@@ -2,8 +2,9 @@ from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKe
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.app.database import Base
+from backend.app.models.tenant import TenantOwnedMixin
 
-class Submission(Base):
+class Submission(TenantOwnedMixin, Base):
     __tablename__ = "submissions"
 
     id = Column(Integer, primary_key=True, index=True)

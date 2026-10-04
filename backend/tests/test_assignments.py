@@ -6,8 +6,8 @@ from backend.app.main import app
 
 client = TestClient(app)
 
-def get_teacher_token():
-    res = client.post("/api/auth/login", json={"username": "teacher", "password": "Password123!"})
+def get_teacher_token(username="teacher"):
+    res = client.post("/api/auth/login", json={"username": username, "password": "Password123!"})
     return res.json()["access_token"]
 
 def get_student_token():
@@ -42,7 +42,7 @@ def test_list_assignments_student():
     assert len(items) >= 1
 
 def test_student_submit_and_grade():
-    teacher_token = get_teacher_token()
+    teacher_token = get_teacher_token("john_doe")
     student_token = get_student_token()
 
     # Submit to assignment 2 (Newton's Laws)

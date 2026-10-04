@@ -1,11 +1,13 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_, false, or_
 from backend.app.database import get_db
 from backend.app.models.timetable import Timetable
 from backend.app.models.teacher import Teacher
 from backend.app.schemas.class_schema import TimetableCreate, TimetableResponse
 from backend.app.utils.permissions import require_roles, get_current_active_user
+from backend.app.utils.school_access import teacher_class_ids
 
 router = APIRouter(prefix="/timetable", tags=["Timetable"])
 
@@ -24,6 +26,22 @@ def get_timetable(
         joinedload(Timetable.subject),
         joinedload(Timetable.teacher).joinedload(Teacher.user)
     )
+    if current_user.role == "STUDENT":
+        student = current_user.student_profile
+        query = query.filter(
+            Timetable.class_id == student.class_id,
+            Timetable.section_id == student.section_id,
+        ) if student else query.filter(false())
+    elif current_user.role == "PARENT":
+        parent = current_user.parent_profile
+        clauses = [and_(Timetable.class_id == child.class_id,
+                        Timetable.section_id == child.section_id)
+                   for child in parent.students if child.class_id and child.section_id] if parent else []
+        query = query.filter(or_(*clauses)) if clauses else query.filter(false())
+    elif current_user.role == "TEACHER":
+        query = query.filter(Timetable.class_id.in_(teacher_class_ids(current_user)))
+    elif current_user.role not in {"SCHOOL_ADMIN", "PRINCIPAL"}:
+        query = query.filter(false())
 
     if class_id:
         query = query.filter(Timetable.class_id == class_id)
@@ -58,7 +76,7 @@ def get_timetable(
 @router.post("", response_model=TimetableResponse)
 def create_timetable_entry(
     entry_in: TimetableCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     entry = Timetable(
@@ -91,7 +109,7 @@ def create_timetable_entry(
 def update_timetable_entry(
     entry_id: int,
     entry_in: TimetableCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     entry = db.query(Timetable).filter(Timetable.id == entry_id).first()
@@ -125,7 +143,7 @@ def update_timetable_entry(
 @router.delete("/{entry_id}")
 def delete_timetable_entry(
     entry_id: int,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     entry = db.query(Timetable).filter(Timetable.id == entry_id).first()

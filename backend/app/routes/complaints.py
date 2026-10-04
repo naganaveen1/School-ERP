@@ -60,7 +60,7 @@ def get_my_complaints(
 @router.get("")
 def list_all_complaints(
     status_filter: Optional[str] = None,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     query = db.query(Complaint).options(joinedload(Complaint.user))
@@ -88,7 +88,7 @@ def list_all_complaints(
 def resolve_complaint(
     complaint_id: int,
     res_in: ComplaintResolve,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     complaint = db.query(Complaint).filter(Complaint.id == complaint_id).first()

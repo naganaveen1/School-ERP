@@ -1,13 +1,17 @@
-from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.app.database import Base
+from backend.app.models.tenant import TenantOwnedMixin
 
-class AcademicYear(Base):
+class AcademicYear(TenantOwnedMixin, Base):
     __tablename__ = "academic_years"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_academic_years_tenant_name"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), unique=True, nullable=False, index=True)  # e.g., 2025-2026
+    name = Column(String(50), nullable=False, index=True)  # e.g., 2025-2026
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     is_current = Column(Boolean, default=False, nullable=False)

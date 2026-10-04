@@ -23,8 +23,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend, frontend, and project files
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
-COPY uploads/ ./uploads/
-
+COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
+COPY alembic.ini ./alembic.ini
 # Create uploads directory structure if missing
 RUN mkdir -p uploads/assignments uploads/documents uploads/profiles uploads/reports uploads/study-materials
 
@@ -36,4 +37,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
 # Command to run application using Uvicorn
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

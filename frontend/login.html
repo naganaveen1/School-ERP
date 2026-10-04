@@ -2,138 +2,97 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - School/College ERP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · School ERP</title>
   <link rel="stylesheet" href="/frontend/css/bootstrap.min.css">
   <link rel="stylesheet" href="/frontend/css/themes.css">
   <link rel="stylesheet" href="/frontend/css/style.css">
   <link rel="stylesheet" href="/frontend/css/forms.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
   <style>
-    body {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-    }
-    .login-card {
-      background: #ffffff;
-      border-radius: var(--radius-lg);
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-      width: 100%;
-      max-width: 440px;
-      overflow: hidden;
-    }
-    .demo-pill {
-      font-size: 0.75rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      border: 1px solid var(--border-color);
-      border-radius: 20px;
-      padding: 0.25rem 0.65rem;
-      background: #f8fafc;
-      color: #334155;
-    }
-    .demo-pill:hover {
-      background: var(--primary-light);
-      border-color: var(--primary);
-      color: var(--primary);
-    }
+    .login-screen { min-height: 100vh; display: grid; grid-template-columns: minmax(360px, 43%) 1fr; background: var(--surface); }
+    .login-story { display: flex; flex-direction: column; justify-content: space-between; padding: clamp(32px, 5vw, 72px); background: #143d34; color: #eaf5ec; overflow: hidden; position: relative; }
+    .login-story::after { content: ''; position: absolute; width: 520px; height: 520px; border: 1px solid rgb(255 255 255 / .11); border-radius: 50%; right: -225px; bottom: -200px; box-shadow: 0 0 0 85px rgb(255 255 255 / .025), 0 0 0 170px rgb(255 255 255 / .022); pointer-events: none; }
+    .login-brand { display: flex; align-items: center; gap: 12px; font-weight: 700; letter-spacing: -.025em; font-size: 1rem; }
+    .login-brand .brand-mark { background: #d5eddd; }
+    .login-story h1 { max-width: 580px; margin: 0 0 18px; font-size: clamp(2.4rem, 4vw, 4.2rem); line-height: 1.08; letter-spacing: -.06em; font-weight: 720; }
+    .login-story p { max-width: 420px; margin: 0; color: #b9d5c8; font-size: 1.03rem; line-height: 1.65; }
+    .login-foot { color: #a3c4b5; font-size: .8rem; }
+    .login-main { display: grid; place-items: center; padding: 32px; background: var(--surface); }
+    .login-form-wrap { width: min(100%, 390px); }
+    .login-form-wrap h2 { margin: 0 0 8px; font-size: 2rem; letter-spacing: -.045em; font-weight: 700; }
+    .login-intro { color: var(--text-secondary); margin-bottom: 34px; }
+    .login-form-wrap .form-control { height: 44px; }
+    .login-submit { min-height: 44px; margin-top: 12px; }
+    .login-help { margin-top: 28px; color: var(--text-muted); font-size: .82rem; line-height: 1.6; }
+    @media (max-width: 820px) { .login-screen { display: block; } .login-story { min-height: 185px; padding: 26px; } .login-story h1 { font-size: 1.7rem; margin: 26px 0 0; } .login-story p, .login-foot { display: none; } .login-main { min-height: calc(100vh - 185px); align-items: start; padding: 44px 24px; } }
   </style>
 </head>
 <body>
-
-  <div class="login-card p-4 p-sm-5">
-    <div class="text-center mb-4">
-      <div style="font-size: 2.5rem;">🎓</div>
-      <h3 class="fw-bold text-dark mt-2 mb-1">School/College ERP</h3>
-      <p class="text-secondary small">Sign in to access your role portal</p>
-    </div>
-
-    <div id="login-alert" class="alert alert-danger d-none py-2 px-3 small" role="alert"></div>
-
-    <form id="login-form" onsubmit="handleLogin(event)">
-      <div class="mb-3">
-        <label for="username" class="form-label">Username or Email</label>
-        <input type="text" class="form-control" id="username" required autofocus placeholder="Enter your username">
+  <div class="login-screen">
+    <aside class="login-story" aria-label="About School ERP">
+      <div class="login-brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21V8l9-5 9 5v13M3 10h18M9 21v-6h6v6"/></svg></span>School ERP</div>
+      <div><h1>Everything your school needs, in one clear place.</h1><p>Bring academics, people, and daily operations together in a workspace designed for education.</p></div>
+      <div class="login-foot">A better day starts with a clearer view.</div>
+    </aside>
+    <main class="login-main">
+      <div class="login-form-wrap">
+        <h2>Welcome back</h2>
+        <p class="login-intro">Sign in to your school workspace.</p>
+        <div id="login-alert" class="alert alert-danger d-none" role="alert" aria-live="polite"></div>
+        <form id="login-form" onsubmit="handleLogin(event)">
+          <div class="mb-3"><label for="school-slug" class="form-label">School workspace</label><input type="text" class="form-control" id="school-slug" name="school_slug" autocomplete="organization" placeholder="e.g. green-valley-school"><div class="form-text">Use the workspace name provided by your school. Platform staff may leave this blank.</div></div>
+          <div class="mb-4"><label for="username" class="form-label">Username or email</label><input type="text" class="form-control" id="username" name="username" autocomplete="username" required autofocus placeholder="Enter your username"></div>
+          <div class="mb-3"><div class="d-flex justify-content-between align-items-center"><label for="password" class="form-label">Password</label><a href="/frontend/forgot-password.html" class="small">Forgot password?</a></div><input type="password" class="form-control" id="password" name="password" autocomplete="current-password" required placeholder="Enter your password"></div>
+          <button type="submit" id="login-btn" class="btn btn-primary w-100 login-submit">Sign in</button>
+        </form>
+        <p class="login-help">Need access? Contact your school administrator.</p>
       </div>
-
-      <div class="mb-3">
-        <div class="d-flex justify-content-between align-items-center">
-          <label for="password" class="form-label">Password</label>
-          <a href="/frontend/forgot-password.html" class="small text-muted">Forgot password?</a>
-        </div>
-        <input type="password" class="form-control" id="password" required placeholder="Enter password">
-      </div>
-
-      <button type="submit" id="login-btn" class="btn btn-primary w-100 py-2 fw-semibold mt-2">
-        Sign In
-      </button>
-    </form>
-
-    <!-- Demo Credentials Quick Selector -->
-    <div class="mt-4 pt-3 border-top">
-      <div class="text-muted small text-center mb-2 fw-semibold">Quick Demo Login:</div>
-      <div class="d-flex flex-wrap justify-content-center gap-1">
-        <span class="demo-pill" onclick="fillDemo('admin')">Admin</span>
-        <span class="demo-pill" onclick="fillDemo('principal')">Principal</span>
-        <span class="demo-pill" onclick="fillDemo('teacher')">Teacher</span>
-        <span class="demo-pill" onclick="fillDemo('student')">Student</span>
-        <span class="demo-pill" onclick="fillDemo('parent')">Parent</span>
-      </div>
-    </div>
+    </main>
   </div>
-
   <script src="/frontend/js/api.js"></script>
   <script src="/frontend/js/auth.js"></script>
-  <script src="/frontend/js/utils.js"></script>
   <script>
-    // If already logged in, redirect directly to dashboard
-    if (auth.isAuthenticated()) {
-      auth.redirectBasedOnRole(auth.getRole());
+    if (auth.isAuthenticated()) auth.redirectBasedOnRole(auth.getRole());
+    const schoolSlug = new URLSearchParams(location.search).get('school');
+    if (schoolSlug) {
+      document.getElementById('school-slug').value = schoolSlug;
+      api.get(`/schools/${encodeURIComponent(schoolSlug)}/branding`).then(school => {
+        document.querySelector('.login-brand').lastChild.textContent = school.name;
+        document.title = `Sign in · ${school.name}`;
+        document.documentElement.style.setProperty('--primary', school.primary_color);
+        if (school.logo_url && /^https:\/\//i.test(school.logo_url)) {
+          const logo = document.createElement('img'); logo.src = school.logo_url; logo.alt = '';
+          logo.style.cssText = 'max-width:24px;max-height:24px;object-fit:contain';
+          document.querySelector('.login-brand .brand-mark').replaceChildren(logo);
+        }
+      }).catch(() => {
+        const alertEl = document.getElementById('login-alert');
+        alertEl.textContent = 'School workspace not found. Check the workspace name.';
+        alertEl.classList.remove('d-none');
+      });
     }
-
-    const params = utils.getQueryParams();
-    if (params.expired) {
+    if (new URLSearchParams(location.search).has('expired')) {
       const alertEl = document.getElementById('login-alert');
       alertEl.textContent = 'Your session has expired. Please sign in again.';
       alertEl.classList.remove('d-none');
     }
-
-    const demoPasswords = {
-      admin: 'admin123',
-      principal: 'principal123',
-      teacher: 'teacher123',
-      student: 'student123',
-      parent: 'parent123'
-    };
-
-    function fillDemo(role) {
-      document.getElementById('username').value = role;
-      document.getElementById('password').value = demoPasswords[role] || (role + '123');
-      document.getElementById('login-form').requestSubmit();
-    }
-
-    async function handleLogin(e) {
-      e.preventDefault();
-      const btn = document.getElementById('login-btn');
+    async function handleLogin(event) {
+      event.preventDefault();
+      const button = document.getElementById('login-btn');
       const alertEl = document.getElementById('login-alert');
       alertEl.classList.add('d-none');
-      btn.disabled = true;
-      btn.textContent = 'Signing in...';
-
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value;
-
+      button.disabled = true;
+      button.textContent = 'Signing in…';
       try {
-        const user = await auth.login(username, password);
+        const user = await auth.login(document.getElementById('username').value.trim(), document.getElementById('password').value, document.getElementById('school-slug').value.trim());
         auth.redirectBasedOnRole(user.role);
-      } catch (err) {
-        alertEl.textContent = err.message || 'Login failed. Please verify credentials.';
+      } catch (error) {
+        alertEl.textContent = error.message || 'Unable to sign in. Check your credentials and try again.';
         alertEl.classList.remove('d-none');
-        btn.disabled = false;
-        btn.textContent = 'Sign In';
+        button.disabled = false;
+        button.textContent = 'Sign in';
       }
     }
   </script>

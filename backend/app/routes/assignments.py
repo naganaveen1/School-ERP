@@ -6,6 +6,7 @@ from backend.app.database import get_db
 from backend.app.models.user import User
 from backend.app.models.teacher import Teacher
 from backend.app.models.student import Student
+from backend.app.models.section import Section
 from backend.app.models.assignment import Assignment
 from backend.app.models.submission import Submission
 from backend.app.schemas.assignment import (
@@ -15,10 +16,29 @@ from backend.app.schemas.assignment import (
 from backend.app.services.assignment_service import assignment_service
 from backend.app.services.file_service import file_service
 from backend.app.services.notification_service import notification_service
-from backend.app.utils.permissions import require_roles, get_current_active_user
+from backend.app.utils.permissions import require_roles, get_current_active_user, require_feature
 from backend.app.utils.helpers import log_audit_action
+from backend.app.utils.school_access import teacher_for_subject
 
-router = APIRouter(prefix="/assignments", tags=["Assignments"])
+router = APIRouter(prefix="/assignments", tags=["Assignments"], dependencies=[Depends(require_feature("assignments"))])
+
+
+def _can_view_assignment(assignment: Assignment, user: User) -> bool:
+    if user.role in {"SCHOOL_ADMIN", "PRINCIPAL"}:
+        return True
+    if user.role == "TEACHER":
+        return bool(user.teacher_profile and assignment.teacher_id == user.teacher_profile.id)
+    if user.role == "STUDENT":
+        student = user.student_profile
+        return bool(student and student.class_id == assignment.class_id and
+                    (assignment.section_id is None or assignment.section_id == student.section_id))
+    if user.role == "PARENT":
+        return bool(user.parent_profile and any(
+            child.class_id == assignment.class_id and
+            (assignment.section_id is None or assignment.section_id == child.section_id)
+            for child in user.parent_profile.students
+        ))
+    return False
 
 @router.get("", response_model=List[AssignmentResponse])
 def list_assignments(
@@ -36,9 +56,25 @@ def list_assignments(
         joinedload(Assignment.submissions)
     )
 
-    if current_user.role == "STUDENT" and current_user.student_profile:
-        query = query.filter(Assignment.class_id == current_user.student_profile.class_id)
-    elif class_id:
+    if current_user.role == "STUDENT":
+        student = current_user.student_profile
+        if not student or student.class_id is None:
+            return []
+        query = query.filter(Assignment.class_id == student.class_id)
+        query = query.filter((Assignment.section_id.is_(None)) | (Assignment.section_id == student.section_id))
+    elif current_user.role == "TEACHER":
+        teacher = current_user.teacher_profile
+        if not teacher:
+            return []
+        query = query.filter(Assignment.teacher_id == teacher.id)
+    elif current_user.role == "PARENT":
+        children = current_user.parent_profile.students if current_user.parent_profile else []
+        if not children:
+            return []
+        query = query.filter(Assignment.class_id.in_([child.class_id for child in children if child.class_id]))
+    elif current_user.role not in {"SCHOOL_ADMIN", "PRINCIPAL"}:
+        return []
+    if class_id:
         query = query.filter(Assignment.class_id == class_id)
 
     if subject_id:
@@ -46,7 +82,8 @@ def list_assignments(
     if teacher_id:
         query = query.filter(Assignment.teacher_id == teacher_id)
 
-    assignments = query.order_by(Assignment.due_date.desc()).all()
+    assignments = [a for a in query.order_by(Assignment.due_date.desc()).all()
+                   if _can_view_assignment(a, current_user)]
 
     student_id = current_user.student_profile.id if current_user.role == "STUDENT" and current_user.student_profile else None
 
@@ -97,22 +134,17 @@ def create_assignment(
     section_id: Optional[int] = Form(None),
     max_marks: float = Form(100.0),
     file: Optional[UploadFile] = File(None),
-    current_user: User = Depends(require_roles(["TEACHER", "ADMIN"])),
+    current_user: User = Depends(require_roles(["TEACHER", "SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
-    teacher_id = None
-    if current_user.role == "TEACHER":
-        if not current_user.teacher_profile:
-            raise HTTPException(status_code=400, detail="Teacher profile not found")
-        teacher_id = current_user.teacher_profile.id
-    else:
-        # Admin: find or assign first teacher or request
-        first_teacher = db.query(Teacher).first()
-        teacher_id = first_teacher.id if first_teacher else 1
+    teacher_id = teacher_for_subject(db, current_user, class_id, subject_id)
+    if section_id and not db.query(Section.id).filter(Section.id == section_id,
+                                                      Section.class_id == class_id).first():
+        raise HTTPException(status_code=400, detail="Section does not belong to this class")
 
     attachment_path = None
     if file and file.filename:
-        attachment_path = file_service.save_upload_file(file, "assignments")
+        attachment_path = file_service.save_upload_file(file, "assignments", current_user.tenant_id)
 
     assignment_in = AssignmentCreate(
         title=title,
@@ -123,7 +155,12 @@ def create_assignment(
         due_date=due_date,
         max_marks=max_marks
     )
-    assignment = assignment_service.create_assignment(db, teacher_id, assignment_in, attachment_path)
+    try:
+        assignment = assignment_service.create_assignment(db, teacher_id, assignment_in, attachment_path)
+    except Exception:
+        if attachment_path:
+            file_service.delete_file(attachment_path)
+        raise
 
     # Notify students in that class
     students = db.query(Student).filter(Student.class_id == class_id).all()
@@ -170,6 +207,8 @@ def get_assignment(
 
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    if not _can_view_assignment(a, current_user):
+        raise HTTPException(status_code=404, detail="Assignment not found")
 
     my_sub = None
     if current_user.role == "STUDENT" and current_user.student_profile:
@@ -208,7 +247,7 @@ def get_assignment(
 @router.delete("/{assignment_id}")
 def delete_assignment(
     assignment_id: int,
-    current_user: User = Depends(require_roles(["TEACHER", "ADMIN"])),
+    current_user: User = Depends(require_roles(["TEACHER", "SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     a = db.query(Assignment).filter(Assignment.id == assignment_id).first()
@@ -237,13 +276,21 @@ def submit_assignment(
     if not current_user.student_profile:
         raise HTTPException(status_code=400, detail="Student profile not found")
 
-    file_path = file_service.save_upload_file(file, "assignments")
-    submission = assignment_service.submit_assignment(
-        db=db,
-        assignment_id=assignment_id,
-        student_id=current_user.student_profile.id,
-        file_path=file_path
-    )
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment or not _can_view_assignment(assignment, current_user):
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    file_path = file_service.save_upload_file(file, "assignments", current_user.tenant_id)
+    try:
+        submission = assignment_service.submit_assignment(
+            db=db,
+            assignment_id=assignment_id,
+            student_id=current_user.student_profile.id,
+            file_path=file_path
+        )
+    except Exception:
+        file_service.delete_file(file_path)
+        raise
 
     log_audit_action(db, "SUBMISSION_CREATE", "Submission", str(submission.id), f"Student {current_user.username} submitted assignment {assignment_id}", current_user.id)
 
@@ -257,11 +304,13 @@ def submit_assignment(
 @router.get("/{assignment_id}/submissions", response_model=List[SubmissionResponse])
 def get_assignment_submissions(
     assignment_id: int,
-    current_user: User = Depends(require_roles(["TEACHER", "ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["TEACHER", "SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
     if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    if current_user.role == "TEACHER" and not _can_view_assignment(assignment, current_user):
         raise HTTPException(status_code=404, detail="Assignment not found")
 
     submissions = db.query(Submission).options(
@@ -291,9 +340,16 @@ def get_assignment_submissions(
 def grade_submission(
     submission_id: int,
     grade_data: SubmissionGrade,
-    current_user: User = Depends(require_roles(["TEACHER", "ADMIN"])),
+    current_user: User = Depends(require_roles(["TEACHER", "SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
+    target = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if current_user.role == "TEACHER" and not _can_view_assignment(target.assignment, current_user):
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if grade_data.marks_obtained < 0 or grade_data.marks_obtained > target.assignment.max_marks:
+        raise HTTPException(status_code=400, detail="Marks must be between zero and the assignment maximum")
     sub = assignment_service.grade_submission(
         db=db,
         submission_id=submission_id,

@@ -19,7 +19,7 @@ def list_parents(
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     query = db.query(Parent).join(Parent.user).options(
@@ -61,7 +61,7 @@ def list_parents(
 @router.post("", response_model=ParentResponse)
 def create_parent(
     parent_in: ParentCreate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     user_create = UserCreate(
@@ -95,7 +95,10 @@ def get_parent(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    if current_user.role not in ["ADMIN", "PRINCIPAL"] and (current_user.parent_profile and current_user.parent_profile.id != parent_id):
+    if current_user.role not in ["SCHOOL_ADMIN", "PRINCIPAL"] and (
+        current_user.role != "PARENT" or not current_user.parent_profile
+        or current_user.parent_profile.id != parent_id
+    ):
         raise HTTPException(status_code=403, detail="Access denied")
 
     parent = db.query(Parent).options(
@@ -135,7 +138,7 @@ def get_parent(
 def update_parent(
     parent_id: int,
     parent_in: ParentUpdate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     parent = db.query(Parent).filter(Parent.id == parent_id).first()
@@ -166,7 +169,7 @@ def update_parent(
 @router.delete("/{parent_id}")
 def delete_parent(
     parent_id: int,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     parent = db.query(Parent).filter(Parent.id == parent_id).first()
@@ -184,7 +187,7 @@ def delete_parent(
 def link_student_to_parent(
     parent_id: int,
     student_id: int,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     parent = db.query(Parent).filter(Parent.id == parent_id).first()

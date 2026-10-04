@@ -6,6 +6,8 @@ from backend.app.models.user import User
 from backend.app.schemas.auth import LoginRequest, Token, PasswordChangeRequest
 from backend.app.schemas.user import UserResponse
 from backend.app.services.auth_service import auth_service
+from backend.app.models.saas import Subscription
+from backend.app.services.subscription_service import can_access_school
 from backend.app.utils.security import create_access_token
 from backend.app.utils.permissions import get_current_active_user
 from backend.app.utils.helpers import log_audit_action
@@ -14,7 +16,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/login", response_model=Token)
 def login(login_data: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    user = auth_service.authenticate_user(db, login_data.username, login_data.password)
+    user = auth_service.authenticate_user(db, login_data.username, login_data.password, login_data.school_slug)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -26,10 +28,21 @@ def login(login_data: LoginRequest, request: Request, db: Session = Depends(get_
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled"
         )
+    if user.tenant_id is not None and (not user.tenant or user.tenant.status == "ARCHIVED"):
+        raise HTTPException(status_code=403, detail="School account is unavailable")
+    billing_only = False
+    if user.tenant_id is not None:
+        subscription = db.query(Subscription).filter(Subscription.tenant_id == user.tenant_id).first()
+        billing_only = (user.tenant.status not in ("ACTIVE", "TRIAL") or
+                        not subscription or not can_access_school(subscription))
+        if billing_only and user.role != "SCHOOL_ADMIN":
+            raise HTTPException(status_code=403, detail="School subscription is inactive")
 
     access_token = create_access_token(
-        data={"sub": str(user.id), "role": user.role}
+        data={"sub": str(user.id), "role": user.role, "tid": user.tenant_id}
     )
+    db.info["tenant_scope"] = "tenant" if user.tenant_id is not None else "platform"
+    db.info["tenant_id"] = user.tenant_id
 
     # Attach profile id if available
     profile_id = None
@@ -43,7 +56,8 @@ def login(login_data: LoginRequest, request: Request, db: Session = Depends(get_
         profile_id = user.principal_profile.id
 
     client_ip = request.client.host if request.client else None
-    log_audit_action(db, "LOGIN", "User", str(user.id), f"User {user.username} logged in", user.id, client_ip)
+    if user.tenant_id is not None:
+        log_audit_action(db, "LOGIN", "User", str(user.id), f"User {user.username} logged in", user.id, client_ip)
 
     return {
         "access_token": access_token,
@@ -54,6 +68,10 @@ def login(login_data: LoginRequest, request: Request, db: Session = Depends(get_
             "email": user.email,
             "full_name": user.full_name,
             "role": user.role,
+            "tenant_id": user.tenant_id,
+            "school_slug": user.tenant.slug if user.tenant else None,
+            "school_name": user.tenant.name if user.tenant else None,
+            "billing_only": billing_only,
             "profile_id": profile_id,
             "avatar": user.avatar
         }
@@ -115,7 +133,8 @@ def change_password(
     db: Session = Depends(get_db)
 ):
     auth_service.change_password(db, current_user, data.old_password, data.new_password)
-    log_audit_action(db, "PASSWORD_CHANGE", "User", str(current_user.id), "Password updated", current_user.id)
+    if current_user.tenant_id is not None:
+        log_audit_action(db, "PASSWORD_CHANGE", "User", str(current_user.id), "Password updated", current_user.id)
     return {"message": "Password changed successfully"}
 
 @router.post("/logout")
@@ -123,5 +142,6 @@ def logout(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    log_audit_action(db, "LOGOUT", "User", str(current_user.id), "User logged out", current_user.id)
+    if current_user.tenant_id is not None:
+        log_audit_action(db, "LOGOUT", "User", str(current_user.id), "User logged out", current_user.id)
     return {"message": "Successfully logged out"}

@@ -6,9 +6,9 @@ from backend.app.database import get_db
 from backend.app.models.user import User
 from backend.app.models.message import Message
 from backend.app.services.notification_service import notification_service
-from backend.app.utils.permissions import get_current_active_user
+from backend.app.utils.permissions import get_current_active_user, require_feature
 
-router = APIRouter(prefix="/messages", tags=["Messaging"])
+router = APIRouter(prefix="/messages", tags=["Messaging"], dependencies=[Depends(require_feature("messaging"))])
 
 class MessageCreate(BaseModel):
     receiver_id: int

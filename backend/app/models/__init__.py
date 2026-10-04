@@ -1,4 +1,6 @@
 from backend.app.models.role import Role, RoleEnum
+from backend.app.models.tenant import Tenant
+from backend.app.models.saas import Plan, Subscription, PlatformAuditEvent, SaasInvoice, SaasPayment, SaasProviderEvent
 from backend.app.models.user import User
 from backend.app.models.department import Department
 from backend.app.models.academic_year import AcademicYear
@@ -30,6 +32,7 @@ from backend.app.models.audit_log import AuditLog
 
 __all__ = [
     "Role",
+    "Tenant",
     "RoleEnum",
     "User",
     "Department",

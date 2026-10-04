@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/frontend/css/forms.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
 </head>
 <body>
   <div class="app-wrapper">
@@ -107,7 +109,7 @@
         if (a.attachment_path) {
           const attDiv = document.getElementById('assignment-attachment');
           const attLink = document.getElementById('attachment-link');
-          attLink.href = `/api/documents/file/${a.attachment_path}?token=${auth.getToken()}`;
+          attLink.href = `/api/documents/file/${a.attachment_path}`;
           attDiv.classList.remove('d-none');
         }
 
@@ -120,7 +122,7 @@
               ${a.submission.marks_obtained !== null ? `<div class="mt-1 fw-bold text-success">Marks: ${a.submission.marks_obtained} / ${a.max_marks}</div>` : '<div class="small text-muted">Awaiting evaluation</div>'}
               ${a.submission.feedback ? `<div class="mt-1 small border-top pt-1"><strong>Feedback:</strong> ${a.submission.feedback}</div>` : ''}
             </div>
-            ${a.submission.file_path ? `<a href="/api/documents/file/${a.submission.file_path}?token=${auth.getToken()}" target="_blank" class="btn btn-sm btn-outline-secondary w-100" download>📥 Download Submitted File</a>` : ''}
+            ${a.submission.file_path ? `<a href="/api/documents/file/${a.submission.file_path}" target="_blank" class="btn btn-sm btn-outline-secondary w-100" download>📥 Download Submitted File</a>` : ''}
           `;
         } else {
           subInfo.innerHTML = '<div class="alert alert-warning py-2 small">You have not submitted this assignment yet.</div>';

@@ -3,12 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>System Settings - School/College ERP</title>
+  <title>School Settings - School ERP</title>
   <link rel="stylesheet" href="/frontend/css/bootstrap.min.css">
   <link rel="stylesheet" href="/frontend/css/themes.css">
   <link rel="stylesheet" href="/frontend/css/style.css">
   <link rel="stylesheet" href="/frontend/css/forms.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
+  <style>
+    .settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    .settings-grid .wide{grid-column:1/-1}
+    @media(max-width:600px){.settings-grid{grid-template-columns:1fr}.settings-grid .wide{grid-column:auto}}
+  </style>
 </head>
 <body>
   <div class="app-wrapper">
@@ -19,30 +26,51 @@
       <main class="page-content">
         <div class="page-header">
           <div>
-            <h2 class="page-title">System Settings</h2>
-            <div class="page-subtitle">Configure application environment parameters, security, and administrative credentials</div>
+            <h1 class="page-title">School settings</h1>
+            <div class="page-subtitle">Keep your school identity, contact details and account secure.</div>
           </div>
         </div>
 
+        <div class="card card-custom p-4 mb-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3"><div><h2 class="h5 fw-bold mb-1">School profile</h2><p class="page-subtitle mb-0">These details appear in your school workspace.</p></div><span id="settings-status" class="small text-secondary" role="status" aria-live="polite"></span></div>
+          <form id="school-settings-form" class="settings-grid" onsubmit="saveSchoolSettings(event)">
+            <div><label for="school-name" class="form-label">School name</label><input id="school-name" name="name" class="form-control" required minlength="2"></div>
+            <div><label for="school-legal-name" class="form-label">Legal name</label><input id="school-legal-name" name="legal_name" class="form-control"></div>
+            <div><label for="school-email" class="form-label">Contact email</label><input id="school-email" name="email" type="email" class="form-control"></div>
+            <div><label for="school-phone" class="form-label">Phone</label><input id="school-phone" name="phone" type="tel" class="form-control"></div>
+            <div class="wide"><label for="school-address" class="form-label">Address</label><input id="school-address" name="address" class="form-control"></div>
+            <div><label for="school-city" class="form-label">City</label><input id="school-city" name="city" class="form-control"></div>
+            <div><label for="school-state" class="form-label">State</label><input id="school-state" name="state" class="form-control"></div>
+            <div><label for="school-country" class="form-label">Country</label><input id="school-country" name="country" class="form-control"></div>
+            <div><label for="school-postal-code" class="form-label">Postal code</label><input id="school-postal-code" name="postal_code" class="form-control"></div>
+            <div><label for="school-timezone" class="form-label">Timezone</label><input id="school-timezone" name="timezone" class="form-control" placeholder="Asia/Kolkata"></div>
+            <div><label for="school-currency" class="form-label">Currency</label><input id="school-currency" name="currency" class="form-control" pattern="[A-Z]{3}" maxlength="3" placeholder="INR"></div>
+            <div><label for="school-primary-color" class="form-label">Primary color</label><input id="school-primary-color" name="primary_color" type="color" class="form-control form-control-color" value="#0d675f"></div>
+            <div><label for="school-secondary-color" class="form-label">Secondary color</label><input id="school-secondary-color" name="secondary_color" type="color" class="form-control form-control-color" value="#163530"></div>
+            <div class="wide"><label for="school-logo-url" class="form-label">Logo URL (HTTPS)</label><input id="school-logo-url" name="logo_url" type="url" class="form-control" placeholder="https://…"></div>
+            <div class="wide"><label for="school-favicon-url" class="form-label">Favicon URL (HTTPS)</label><input id="school-favicon-url" name="favicon_url" type="url" class="form-control" placeholder="https://…"></div>
+            <div class="wide"><button id="save-school-settings" type="submit" class="btn btn-primary">Save school profile</button></div>
+          </form>
+        </div>
         <div class="row g-4">
           <!-- Environment & System Parameters -->
           <div class="col-lg-6">
             <div class="card card-custom h-100 p-4">
-              <h5 class="fw-bold mb-3 border-bottom pb-2">ERP System Configuration</h5>
+              <h2 class="h5 fw-bold mb-3 border-bottom pb-2">Application limits</h2>
               <div class="mb-3">
-                <label class="form-label text-muted small">Application Name</label>
+                <label for="setting-project-name" class="form-label text-muted small">Application name</label>
                 <input type="text" id="setting-project-name" class="form-control" readonly>
               </div>
               <div class="mb-3">
-                <label class="form-label text-muted small">Maximum File Upload Limit (MB)</label>
+                <label for="setting-max-upload" class="form-label text-muted small">Maximum file upload (MB)</label>
                 <input type="text" id="setting-max-upload" class="form-control" readonly>
               </div>
               <div class="mb-3">
-                <label class="form-label text-muted small">Session JWT Expiry (Minutes)</label>
+                <label for="setting-token-expire" class="form-label text-muted small">Session expiry (minutes)</label>
                 <input type="text" id="setting-token-expire" class="form-control" readonly>
               </div>
               <div class="mb-3">
-                <label class="form-label text-muted small">Permitted Document File Types</label>
+                <label for="setting-extensions" class="form-label text-muted small">Permitted file types</label>
                 <input type="text" id="setting-extensions" class="form-control" readonly>
               </div>
               <div class="alert alert-info py-2 small mb-0">
@@ -54,19 +82,19 @@
           <!-- Security Credentials -->
           <div class="col-lg-6">
             <div class="card card-custom h-100 p-4">
-              <h5 class="fw-bold mb-3 border-bottom pb-2">Change Admin Password</h5>
+              <h2 class="h5 fw-bold mb-3 border-bottom pb-2">Change your password</h2>
               <form id="change-password-form" onsubmit="handleChangePassword(event)">
                 <div class="mb-3">
-                  <label class="form-label">Current Password *</label>
-                  <input type="password" name="old_password" class="form-control" required placeholder="Enter current password">
+                  <label for="old-password" class="form-label">Current password</label>
+                  <input id="old-password" type="password" name="old_password" class="form-control" autocomplete="current-password" required placeholder="Enter current password">
                 </div>
                 <div class="mb-3">
-                  <label class="form-label">New Password *</label>
-                  <input type="password" name="new_password" class="form-control" required minlength="6" placeholder="Minimum 6 characters">
+                  <label for="new-password" class="form-label">New password</label>
+                  <input id="new-password" type="password" name="new_password" class="form-control" autocomplete="new-password" required minlength="12" placeholder="At least 12 characters">
                 </div>
                 <div class="mb-3">
-                  <label class="form-label">Confirm New Password *</label>
-                  <input type="password" name="confirm_password" class="form-control" required minlength="6" placeholder="Re-enter new password">
+                  <label for="confirm-password" class="form-label">Confirm new password</label>
+                  <input id="confirm-password" type="password" name="confirm_password" class="form-control" autocomplete="new-password" required minlength="12" placeholder="Re-enter new password">
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Update Password</button>
               </form>
@@ -84,9 +112,10 @@
   <script src="/frontend/js/utils.js"></script>
   <script src="/frontend/js/components.js"></script>
   <script>
-    if (permissions.enforcePageAccess(['ADMIN'])) {
+    if (permissions.enforcePageAccess(['SCHOOL_ADMIN'])) {
       components.renderLayout('System Settings');
       loadSettings();
+      loadSchoolSettings();
     }
 
     async function loadSettings() {
@@ -95,10 +124,38 @@
         document.getElementById('setting-project-name').value = data.project_name || 'School/College ERP';
         document.getElementById('setting-max-upload').value = `${data.max_upload_size_mb || 10} MB`;
         document.getElementById('setting-token-expire').value = `${data.token_expire_minutes || 1440} Minutes`;
-        document.getElementById('setting-extensions').value = (data.allowed_extensions || []).join(', ');
+        document.getElementById('setting-extensions').value = data.allowed_extensions || '';
       } catch (e) {
-        console.error(e);
+        document.getElementById('settings-status').textContent = 'Unable to load application limits.';
       }
+    }
+
+    async function loadSchoolSettings() {
+      try {
+        const school = await api.get('/admin/school-settings');
+        const form = document.getElementById('school-settings-form');
+        for (const input of form.querySelectorAll('[name]')) input.value = school[input.name] ?? '';
+      } catch (error) {
+        document.getElementById('settings-status').textContent = error.message || 'Unable to load school settings.';
+      }
+    }
+
+    async function saveSchoolSettings(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = document.getElementById('save-school-settings');
+      const status = document.getElementById('settings-status');
+      button.disabled = true; button.textContent = 'Saving…'; status.textContent = '';
+      const values = Object.fromEntries(new FormData(form));
+      for (const key of ['logo_url', 'favicon_url', 'email']) if (!values[key]) delete values[key];
+      try {
+        const school = await api.patch('/admin/school-settings', values);
+        status.textContent = 'School profile saved.';
+        const user = auth.getUser(); user.school_name = school.name; localStorage.setItem('user', JSON.stringify(user));
+        document.querySelector('.sidebar-brand').textContent = school.name;
+        document.documentElement.style.setProperty('--primary', school.primary_color);
+      } catch (error) { status.textContent = error.message || 'Could not save school profile.'; }
+      finally { button.disabled = false; button.textContent = 'Save school profile'; }
     }
 
     async function handleChangePassword(e) {

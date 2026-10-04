@@ -23,7 +23,7 @@ def verify_student_access(student_id: int, current_user: User, db: Session) -> S
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    if current_user.role in ["ADMIN", "PRINCIPAL"]:
+    if current_user.role in ["SCHOOL_ADMIN", "PRINCIPAL"]:
         return student
 
     if current_user.role == "STUDENT":
@@ -56,7 +56,7 @@ def list_students(
     section_id: Optional[int] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL", "TEACHER"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL", "TEACHER"])),
     db: Session = Depends(get_db)
 ):
     query = db.query(Student).join(Student.user).options(
@@ -120,7 +120,7 @@ def list_students(
 @router.post("", response_model=StudentResponse)
 def create_student(
     student_in: StudentCreate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     student = student_service.create_student(db, student_in)
@@ -179,7 +179,7 @@ def get_student(
 def update_student(
     student_id: int,
     student_in: StudentUpdate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     student = student_service.update_student(db, student_id, student_in)
@@ -209,7 +209,7 @@ def update_student(
 @router.delete("/{student_id}")
 def delete_student(
     student_id: int,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     student_service.delete_student(db, student_id)
