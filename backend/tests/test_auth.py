@@ -6,7 +6,7 @@ client = TestClient(app)
 
 def test_login_success():
     roles = [
-        ("admin", "Password123!", "ADMIN"),
+        ("admin", "Password123!", "SCHOOL_ADMIN"),
         ("principal", "Password123!", "PRINCIPAL"),
         ("teacher", "Password123!", "TEACHER"),
         ("student", "Password123!", "STUDENT"),
@@ -34,7 +34,7 @@ def test_auth_me():
     assert response.status_code == 200
     user_data = response.json()
     assert user_data["username"] == "admin"
-    assert user_data["role"] == "ADMIN"
+    assert user_data["role"] == "SCHOOL_ADMIN"
 
 def test_auth_me_unauthorized():
     response = client.get("/api/auth/me")

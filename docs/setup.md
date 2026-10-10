@@ -36,7 +36,7 @@ cp .env.example .env
 Default `.env` configuration:
 ```env
 PROJECT_NAME="School/College ERP"
-SECRET_KEY="school-college-erp-development-super-secret-key-change-in-production"
+SECRET_KEY="replace-with-a-long-random-secret"
 ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 DATABASE_URL="sqlite:///./backend/school_erp.db"
@@ -71,10 +71,7 @@ To execute the automated test suite testing auth, students, attendance, assignme
 ```bash
 pytest
 ```
-Expected output:
-```text
-============================== 18 passed in X.XXs ==============================
-```
+Use a disposable database seeded for tests. The checked-in sample database has drifted from some demo-specific assertions; see [TESTING.md](TESTING.md).
 
 ---
 
@@ -89,4 +86,4 @@ All demo accounts are pre-seeded with the password: **`Password123!`**
 | **STUDENT** | `student` | `Password123!` | `/frontend/student/dashboard.html` |
 | **PARENT** | `parent` | `Password123!` | `/frontend/parent/dashboard.html` |
 
-*Tip: The login page includes convenient 1-click credential buttons for quick role switching.*
+The login page does not display demo passwords. These accounts are for local development only.

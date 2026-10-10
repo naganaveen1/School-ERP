@@ -8,10 +8,11 @@ from backend.app.models.class_model import ClassModel
 from backend.app.models.academic_year import AcademicYear
 from backend.app.schemas.exam import ExamCreate, ExamUpdate, ExamResponse
 from backend.app.services.notification_service import notification_service
-from backend.app.utils.permissions import require_roles, get_current_active_user
+from backend.app.utils.permissions import require_roles, get_current_active_user, require_feature
 from backend.app.utils.helpers import log_audit_action
+from backend.app.utils.school_access import parent_class_ids, teacher_class_ids
 
-router = APIRouter(prefix="/exams", tags=["Exams"])
+router = APIRouter(prefix="/exams", tags=["Exams"], dependencies=[Depends(require_feature("exams"))])
 
 @router.get("", response_model=List[ExamResponse])
 def list_exams(
@@ -25,9 +26,17 @@ def list_exams(
         joinedload(Exam.class_obj)
     )
 
-    if current_user.role == "STUDENT" and current_user.student_profile:
+    if current_user.role == "STUDENT":
+        if not current_user.student_profile or current_user.student_profile.class_id is None:
+            return []
         query = query.filter(Exam.class_id == current_user.student_profile.class_id)
-    elif class_id:
+    elif current_user.role == "PARENT":
+        query = query.filter(Exam.class_id.in_(parent_class_ids(current_user)))
+    elif current_user.role == "TEACHER":
+        query = query.filter(Exam.class_id.in_(teacher_class_ids(current_user)))
+    elif current_user.role not in {"SCHOOL_ADMIN", "PRINCIPAL"}:
+        return []
+    if class_id:
         query = query.filter(Exam.class_id == class_id)
 
     if is_published is not None:
@@ -55,9 +64,11 @@ def list_exams(
 @router.post("", response_model=ExamResponse)
 def create_exam(
     exam_in: ExamCreate,
-    current_user: User = Depends(require_roles(["ADMIN", "TEACHER"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "TEACHER"])),
     db: Session = Depends(get_db)
 ):
+    if current_user.role == "TEACHER" and exam_in.class_id not in teacher_class_ids(current_user):
+        raise HTTPException(status_code=403, detail="Class is not assigned to this teacher")
     exam = Exam(
         name=exam_in.name,
         exam_type=exam_in.exam_type,
@@ -90,12 +101,15 @@ def create_exam(
 def update_exam(
     exam_id: int,
     exam_in: ExamUpdate,
-    current_user: User = Depends(require_roles(["ADMIN", "TEACHER"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "TEACHER"])),
     db: Session = Depends(get_db)
 ):
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+    if current_user.role == "TEACHER" and (exam.class_id not in teacher_class_ids(current_user) or
+                                            (exam_in.class_id is not None and exam_in.class_id not in teacher_class_ids(current_user))):
+        raise HTTPException(status_code=403, detail="Class is not assigned to this teacher")
 
     if exam_in.name is not None:
         exam.name = exam_in.name
@@ -130,12 +144,14 @@ def update_exam(
 @router.patch("/{exam_id}/publish")
 def publish_exam(
     exam_id: int,
-    current_user: User = Depends(require_roles(["ADMIN", "TEACHER", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "TEACHER", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+    if current_user.role == "TEACHER" and exam.class_id not in teacher_class_ids(current_user):
+        raise HTTPException(status_code=403, detail="Class is not assigned to this teacher")
 
     exam.is_published = True
     db.commit()
@@ -156,7 +172,7 @@ def publish_exam(
 @router.delete("/{exam_id}")
 def delete_exam(
     exam_id: int,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     exam = db.query(Exam).filter(Exam.id == exam_id).first()

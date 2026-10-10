@@ -13,23 +13,23 @@ const permissions = {
   },
 
   canEditAcademicData() {
-    return this.hasAnyRole(['ADMIN']);
+    return this.hasAnyRole(['SCHOOL_ADMIN']);
   },
 
   canMarkAttendance() {
-    return this.hasAnyRole(['ADMIN', 'TEACHER', 'PRINCIPAL']);
+    return this.hasAnyRole(['SCHOOL_ADMIN', 'TEACHER', 'PRINCIPAL']);
   },
 
   canGradeAssignments() {
-    return this.hasAnyRole(['ADMIN', 'TEACHER']);
+    return this.hasAnyRole(['SCHOOL_ADMIN', 'TEACHER']);
   },
 
   canPublishExams() {
-    return this.hasAnyRole(['ADMIN', 'TEACHER', 'PRINCIPAL']);
+    return this.hasAnyRole(['SCHOOL_ADMIN', 'TEACHER', 'PRINCIPAL']);
   },
 
   canManageFees() {
-    return this.hasRole('ADMIN');
+    return this.hasRole('SCHOOL_ADMIN');
   },
 
   enforcePageAccess(allowedRoles = []) {

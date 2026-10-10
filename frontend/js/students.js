@@ -144,6 +144,8 @@ const studentsManager = {
     }
   },
 
+  currentStudentData: null,
+
   async loadStudentDetails() {
     const params = utils.getQueryParams();
     const id = params.id;
@@ -151,8 +153,10 @@ const studentsManager = {
 
     try {
       const student = await api.get(`/students/${id}`);
-      const setText = (id, val) => {
-        const el = document.getElementById(id);
+      this.currentStudentData = student;
+
+      const setText = (elemId, val) => {
+        const el = document.getElementById(elemId);
         if (el) el.textContent = val || '—';
       };
 
@@ -168,21 +172,317 @@ const studentsManager = {
       setText('detail-parent', student.parent_name);
       setText('detail-address', student.address);
 
-      // Load attendance & fees
-      const att = await api.get(`/students/${id}/attendance`);
-      if (att && att.stats) {
-        setText('att-percentage', `${att.stats.percentage}%`);
-        setText('att-present', `${att.stats.present_days} / ${att.stats.total_days} Days`);
+      // Load attendance stats
+      try {
+        const att = await api.get(`/students/${id}/attendance`);
+        if (att && att.stats) {
+          setText('att-percentage', `${att.stats.percentage}%`);
+          setText('att-present', `${att.stats.present_days} / ${att.stats.total_days} Days`);
+        }
+      } catch (e) {
+        console.warn('Attendance load warning:', e);
       }
 
-      const fees = await api.get(`/students/${id}/fees`);
-      if (fees) {
-        setText('fee-total', utils.formatCurrency(fees.total_fees));
-        setText('fee-paid', utils.formatCurrency(fees.total_paid));
-        setText('fee-balance', utils.formatCurrency(fees.remaining_balance));
-      }
+      // Load Fee Ledger & Summary
+      await this.loadStudentFeeLedger(id);
+
     } catch (e) {
       utils.showToast(e.message || 'Failed to load student details', 'danger');
+    }
+  },
+
+  async loadStudentFeeLedger(studentId) {
+    const duesTbody = document.getElementById('student-fee-dues-tbody');
+    const historyTbody = document.getElementById('student-payment-history-tbody');
+    const payFeeSelect = document.getElementById('record-payment-fee-id');
+
+    const setText = (elemId, val) => {
+      const el = document.getElementById(elemId);
+      if (el) el.textContent = val || '₹0.00';
+    };
+
+    try {
+      // 1. Fee summary & assigned dues
+      const feeSummary = await api.get(`/students/${studentId}/fees`);
+      if (feeSummary) {
+        setText('fee-total', utils.formatCurrency(feeSummary.total_fees));
+        setText('fee-paid', utils.formatCurrency(feeSummary.total_paid));
+        setText('fee-balance', utils.formatCurrency(feeSummary.remaining_balance));
+
+        // Render dues table
+        if (duesTbody) {
+          if (!feeSummary.items || feeSummary.items.length === 0) {
+            duesTbody.innerHTML = '<tr><td colspan="8" class="table-empty-state text-center py-3">No fee dues assigned to student.</td></tr>';
+          } else {
+            duesTbody.innerHTML = feeSummary.items.map(item => {
+              const hasBalance = item.balance > 0;
+              const collectBtn = hasBalance
+                ? `<button class="btn btn-sm btn-success fw-bold" onclick="studentsManager.openRecordPaymentModal(${item.fee_id}, ${item.balance})">💳 Collect Fee</button>`
+                : `<span class="badge bg-success">Cleared</span>`;
+
+              return `
+                <tr>
+                  <td><strong>${item.title}</strong></td>
+                  <td><span class="badge bg-secondary">${item.fee_type}</span></td>
+                  <td>${utils.formatDate(item.due_date)}</td>
+                  <td><strong>${utils.formatCurrency(item.total_amount)}</strong></td>
+                  <td class="text-success fw-bold">${utils.formatCurrency(item.amount_paid)}</td>
+                  <td class="text-danger fw-bold">${utils.formatCurrency(item.balance)}</td>
+                  <td>${utils.getStatusBadge(item.status)}</td>
+                  <td>${collectBtn}</td>
+                </tr>
+              `;
+            }).join('');
+          }
+        }
+
+        // Populate Fee Select dropdown for Collect Fee Modal
+        if (payFeeSelect && feeSummary.items) {
+          payFeeSelect.innerHTML = '<option value="">Select Fee Structure</option>' +
+            feeSummary.items.map(i => `<option value="${i.fee_id}">${i.title} (Bal: ${utils.formatCurrency(i.balance)})</option>`).join('');
+        }
+      }
+
+      // 2. Load Payment History Ledger
+      const payments = await api.get(`/fees/payments?student_id=${studentId}`);
+      if (historyTbody) {
+        if (!payments || payments.length === 0) {
+          historyTbody.innerHTML = '<tr><td colspan="8" class="table-empty-state text-center py-3">No payment transaction receipts recorded.</td></tr>';
+        } else {
+          historyTbody.innerHTML = payments.map(p => {
+            const isVoid = p.payment_status === 'REFUNDED' || p.payment_status === 'CANCELLED' || p.payment_status === 'VOID';
+            const recNo = `REC-${p.id.toString().padStart(6, '0')}`;
+
+            const voidBtn = isVoid
+              ? `<span class="badge bg-danger ms-1">REFUNDED</span>`
+              : `<button class="btn btn-sm btn-outline-danger fw-bold ms-1" onclick="studentsManager.openVoidModal(${p.id}, '${recNo}')">🚫 Void</button>`;
+
+            return `
+              <tr class="${isVoid ? 'table-secondary text-muted' : ''}">
+                <td><strong>${recNo}</strong></td>
+                <td>${utils.formatDate(p.payment_date)}</td>
+                <td>${p.fee_title || 'General Fee'}</td>
+                <td><span class="badge bg-secondary">${p.payment_method}</span></td>
+                <td><span class="${isVoid ? 'text-decoration-line-through' : 'text-success fw-bold'}">${utils.formatCurrency(p.amount_paid)}</span></td>
+                <td>${p.discount_amount > 0 ? `- ${utils.formatCurrency(p.discount_amount)}` : '—'}</td>
+                <td>${utils.getStatusBadge(p.payment_status)}</td>
+                <td>
+                  <button class="btn btn-sm btn-outline-primary fw-bold" onclick="studentsManager.printReceipt(${p.id})" ${isVoid ? 'disabled' : ''}>
+                    🖨️ Receipt
+                  </button>
+                  ${voidBtn}
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+      }
+    } catch (e) {
+      console.error('Error loading fee ledger:', e);
+    }
+  },
+
+  async openEditModal() {
+    if (!this.currentStudentData) return;
+    const s = this.currentStudentData;
+
+    // Load class options into edit modal select if empty
+    const classSelect = document.getElementById('edit-class-id');
+    if (classSelect && classSelect.options.length <= 1) {
+      try {
+        const classes = await api.get('/classes');
+        classSelect.innerHTML = '<option value="">Select Class</option>' +
+          classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      } catch (e) {
+        console.error('Failed loading classes for edit modal', e);
+      }
+    }
+
+    // Pre-fill values
+    const setValue = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val || '';
+    };
+
+    setValue('edit-full-name', s.user ? s.user.full_name : '');
+    setValue('edit-email', s.user ? s.user.email : '');
+    setValue('edit-phone', s.user ? s.user.phone : '');
+    setValue('edit-admission-number', s.admission_number);
+    setValue('edit-roll-number', s.roll_number);
+    setValue('edit-class-id', s.class_id);
+    setValue('edit-gender', s.gender || 'Male');
+    setValue('edit-blood-group', s.blood_group);
+    setValue('edit-date-of-birth', s.date_of_birth);
+    setValue('edit-address', s.address);
+
+    const modalEl = document.getElementById('editStudentModal');
+    if (modalEl && window.bootstrap) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+  },
+
+  async submitStudentUpdate(event) {
+    if (event) event.preventDefault();
+    if (!this.currentStudentData) return;
+    const studentId = this.currentStudentData.id;
+
+    const payload = {
+      full_name: document.getElementById('edit-full-name').value.trim(),
+      email: document.getElementById('edit-email').value.trim(),
+      phone: document.getElementById('edit-phone').value.trim() || null,
+      admission_number: document.getElementById('edit-admission-number').value.trim(),
+      roll_number: document.getElementById('edit-roll-number').value.trim() || null,
+      class_id: parseInt(document.getElementById('edit-class-id').value) || null,
+      gender: document.getElementById('edit-gender').value || null,
+      blood_group: document.getElementById('edit-blood-group').value || null,
+      date_of_birth: document.getElementById('edit-date-of-birth').value || null,
+      address: document.getElementById('edit-address').value.trim() || null
+    };
+
+    try {
+      await api.put(`/students/${studentId}`, payload);
+      utils.showToast('Student profile updated successfully!', 'success');
+      const modalEl = document.getElementById('editStudentModal');
+      if (modalEl && window.bootstrap) {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+      }
+      this.loadStudentDetails();
+    } catch (e) {
+      utils.showToast(e.message || 'Failed to update student profile', 'danger');
+    }
+  },
+
+  openRecordPaymentModal(feeId = null, defaultAmount = 0) {
+    if (feeId) {
+      const feeSelect = document.getElementById('record-payment-fee-id');
+      if (feeSelect) feeSelect.value = feeId;
+    }
+    if (defaultAmount > 0) {
+      const amtInput = document.getElementById('record-payment-amount');
+      if (amtInput) amtInput.value = defaultAmount;
+    }
+
+    const dateInput = document.getElementById('record-payment-date');
+    if (dateInput && !dateInput.value) {
+      dateInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    const modalEl = document.getElementById('recordPaymentModal');
+    if (modalEl && window.bootstrap) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+  },
+
+  async submitRecordPayment(event) {
+    if (event) event.preventDefault();
+    if (!this.currentStudentData) return;
+
+    const form = document.getElementById('record-payment-form');
+    if (!form) return;
+
+    const feeId = parseInt(document.getElementById('record-payment-fee-id').value);
+    const amountPaid = parseFloat(document.getElementById('record-payment-amount').value);
+    if (!feeId || isNaN(amountPaid) || amountPaid <= 0) {
+      utils.showToast('Please select a fee structure and enter a valid payment amount.', 'warning');
+      return;
+    }
+
+    const payload = {
+      fee_id: feeId,
+      student_id: this.currentStudentData.id,
+      amount_paid: amountPaid,
+      discount_amount: parseFloat(document.getElementById('record-payment-discount').value) || 0.0,
+      payment_method: document.getElementById('record-payment-method').value,
+      payment_date: document.getElementById('record-payment-date').value || null,
+      payment_status: 'PAID',
+      transaction_id: document.getElementById('record-payment-txn-id').value.trim() || null,
+      remarks: document.getElementById('record-payment-remarks').value.trim() || null
+    };
+
+    try {
+      await api.post('/fees/payments', payload);
+      utils.showToast('Payment collected & recorded successfully!', 'success');
+      form.reset();
+      const modalEl = document.getElementById('recordPaymentModal');
+      if (modalEl && window.bootstrap) {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+      }
+      this.loadStudentDetails();
+    } catch (e) {
+      utils.showToast(e.message || 'Failed to record payment', 'danger');
+    }
+  },
+
+  async printReceipt(paymentId) {
+    try {
+      const data = await api.get(`/fees/payments/${paymentId}/receipt`);
+      const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+      };
+
+      setText('rec-no', data.receipt_no);
+      setText('rec-student-name', data.student_name);
+      setText('rec-adm-no', data.admission_number);
+      setText('rec-class-name', data.class_name);
+      setText('rec-date', utils.formatDate(data.payment_date));
+      setText('rec-method', data.payment_method);
+      setText('rec-txn-id', data.transaction_id);
+      setText('rec-fee-title', data.fee_title);
+      setText('rec-fee-type', data.fee_type);
+      setText('rec-total-fee', utils.formatCurrency(data.total_fee_amount));
+      setText('rec-discount', `- ${utils.formatCurrency(data.discount_amount)}`);
+      setText('rec-amount-paid', utils.formatCurrency(data.amount_paid));
+      setText('rec-balance', utils.formatCurrency(data.balance_remaining));
+      setText('rec-remarks', data.remarks);
+
+      const modalEl = document.getElementById('printReceiptModal');
+      if (modalEl && window.bootstrap) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+    } catch (e) {
+      utils.showToast(e.message || 'Failed to fetch receipt details', 'danger');
+    }
+  },
+
+  openVoidModal(paymentId, refNo) {
+    document.getElementById('void-payment-id').value = paymentId;
+    document.getElementById('void-payment-ref').value = refNo;
+    document.getElementById('void-payment-reason').value = '';
+
+    const modalEl = document.getElementById('voidPaymentModal');
+    if (modalEl && window.bootstrap) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+  },
+
+  async submitVoidPayment(event) {
+    if (event) event.preventDefault();
+    const paymentId = document.getElementById('void-payment-id').value;
+    const reason = document.getElementById('void-payment-reason').value.trim();
+
+    if (!reason) {
+      utils.showToast('Please provide a reason for voiding/refunding this payment.', 'warning');
+      return;
+    }
+
+    try {
+      const res = await api.post(`/fees/payments/${paymentId}/void?reason=${encodeURIComponent(reason)}`);
+      utils.showToast(res.message, 'success');
+      const modalEl = document.getElementById('voidPaymentModal');
+      if (modalEl && window.bootstrap) {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+      }
+      this.loadStudentDetails();
+    } catch (e) {
+      utils.showToast(e.message || 'Failed to void payment', 'danger');
     }
   }
 };

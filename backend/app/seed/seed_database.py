@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from backend.app.database import SessionLocal, init_db, engine
 from backend.app.models import (
-    Role, User, Principal, Teacher, Parent, Student, Department,
+    Role, Tenant, Plan, Subscription, User, Principal, Teacher, Parent, Student, Department,
     AcademicYear, ClassModel, Section, Subject, Enrollment, Timetable,
     Attendance, Assignment, Submission, StudyMaterial, Exam, Result,
     Fee, Payment, Notice, Notification, Event, Message, Complaint, AuditLog
@@ -22,6 +22,24 @@ def seed_database():
         if db.query(User).filter(User.username == "admin").first():
             print("Database already contains seed data. Skipping seed.")
             return
+
+        tenant = Tenant(name="Demo School", slug="demo-school", status="ACTIVE")
+        db.add(tenant)
+        db.commit()
+        db.refresh(tenant)
+        db.info["tenant_scope"] = "tenant"
+        db.info["tenant_id"] = tenant.id
+        legacy_plan = db.query(Plan).filter(Plan.name == "Legacy").first()
+        if legacy_plan is None:
+            legacy_plan = Plan(name="Legacy", description="Development demo entitlement",
+                               price=0, billing_interval="MONTHLY", trial_days=0,
+                               features=["attendance", "assignments", "exams", "finance",
+                                         "messaging", "reports", "documents", "advanced_reports"],
+                               is_active=False)
+            db.add(legacy_plan)
+            db.flush()
+        db.add(Subscription(tenant_id=tenant.id, plan_id=legacy_plan.id, status="ACTIVE"))
+        db.commit()
 
         print("Seeding Roles...")
         for r in DEMO_ROLES:
@@ -72,7 +90,7 @@ def seed_database():
             email="admin@schoolerp.com",
             hashed_password=get_password_hash("Password123!"),
             full_name="System Administrator",
-            role="ADMIN",
+            role="SCHOOL_ADMIN",
             phone="+1-555-0100",
             is_active=True
         )

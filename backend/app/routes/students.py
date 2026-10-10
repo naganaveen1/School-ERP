@@ -23,7 +23,7 @@ def verify_student_access(student_id: int, current_user: User, db: Session) -> S
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    if current_user.role in ["ADMIN", "PRINCIPAL"]:
+    if current_user.role in ["SCHOOL_ADMIN", "PRINCIPAL"]:
         return student
 
     if current_user.role == "STUDENT":
@@ -56,7 +56,7 @@ def list_students(
     section_id: Optional[int] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL", "TEACHER"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL", "TEACHER"])),
     db: Session = Depends(get_db)
 ):
     query = db.query(Student).join(Student.user).options(
@@ -120,7 +120,7 @@ def list_students(
 @router.post("", response_model=StudentResponse)
 def create_student(
     student_in: StudentCreate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     student = student_service.create_student(db, student_in)
@@ -179,17 +179,37 @@ def get_student(
 def update_student(
     student_id: int,
     student_in: StudentUpdate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     student = student_service.update_student(db, student_id, student_in)
     log_audit_action(db, "STUDENT_UPDATE", "Student", str(student.id), f"Updated student {student.admission_number}", current_user.id)
-    return student_service.get_student_by_id(db, student.id)
+    s = student_service.get_student_by_id(db, student.id)
+    return {
+        "id": s.id,
+        "user_id": s.user_id,
+        "admission_number": s.admission_number,
+        "roll_number": s.roll_number,
+        "class_id": s.class_id,
+        "section_id": s.section_id,
+        "parent_id": s.parent_id,
+        "date_of_birth": s.date_of_birth,
+        "gender": s.gender,
+        "blood_group": s.blood_group,
+        "admission_date": s.admission_date,
+        "address": s.address,
+        "user": UserResponse.model_validate(s.user).model_dump() if s.user else None,
+        "class_name": s.class_obj.name if s.class_obj else None,
+        "section_name": s.section.name if s.section else None,
+        "parent_name": s.parent.user.full_name if s.parent and s.parent.user else None,
+        "created_at": s.created_at,
+        "updated_at": s.updated_at
+    }
 
 @router.delete("/{student_id}")
 def delete_student(
     student_id: int,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     student_service.delete_student(db, student_id)

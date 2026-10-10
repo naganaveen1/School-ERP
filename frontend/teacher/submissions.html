@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/frontend/css/forms.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
 </head>
 <body>
   <div class="app-wrapper">
@@ -124,7 +126,7 @@
             <td>${s.marks_obtained !== null && s.marks_obtained !== undefined ? `<strong class="text-success">${s.marks_obtained} / ${s.max_marks || 100}</strong>` : '<span class="text-muted">Not Graded</span>'}</td>
             <td>
               <div class="table-actions">
-                ${s.file_path ? `<a href="/api/documents/file/${s.file_path}?token=${auth.getToken()}" target="_blank" class="table-action-btn" download>📥 Download</a>` : ''}
+                ${s.file_path ? `<a href="/api/documents/file/${s.file_path}" target="_blank" class="table-action-btn" download>📥 Download</a>` : ''}
                 <button class="table-action-btn text-primary" onclick="assignmentsManager.openGradeModal(${s.id}, ${s.marks_obtained || 0}, '${(s.feedback || '').replace(/'/g, "\\'")}')">✍️ Grade</button>
               </div>
             </td>

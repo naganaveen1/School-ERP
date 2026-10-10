@@ -2,8 +2,9 @@ from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTim
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.app.database import Base
+from backend.app.models.tenant import TenantOwnedMixin
 
-class Fee(Base):
+class Fee(TenantOwnedMixin, Base):
     __tablename__ = "fees"
 
     id = Column(Integer, primary_key=True, index=True)

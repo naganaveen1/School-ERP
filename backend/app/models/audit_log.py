@@ -2,8 +2,9 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.app.database import Base
+from backend.app.models.tenant import TenantOwnedMixin
 
-class AuditLog(Base):
+class AuditLog(TenantOwnedMixin, Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)

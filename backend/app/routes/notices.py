@@ -20,7 +20,7 @@ def list_notices(
     query = db.query(Notice).options(joinedload(Notice.publisher))
 
     # Normal users only see published notices targeting them or ALL
-    if current_user.role not in ["ADMIN", "PRINCIPAL"]:
+    if current_user.role not in ["SCHOOL_ADMIN", "PRINCIPAL"]:
         query = query.filter(
             Notice.is_published == True,
             (Notice.target_role == "ALL") | (Notice.target_role == current_user.role)
@@ -49,7 +49,7 @@ def list_notices(
 @router.post("", response_model=NoticeResponse)
 def create_notice(
     notice_in: NoticeCreate,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     notice = Notice(
@@ -94,7 +94,7 @@ def create_notice(
 def update_notice(
     notice_id: int,
     notice_in: NoticeUpdate,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     notice = db.query(Notice).filter(Notice.id == notice_id).first()
@@ -120,7 +120,7 @@ def update_notice(
 @router.delete("/{notice_id}")
 def delete_notice(
     notice_id: int,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     notice = db.query(Notice).filter(Notice.id == notice_id).first()

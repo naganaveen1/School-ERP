@@ -18,7 +18,7 @@ def list_users(
     is_active: Optional[bool] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     query = db.query(User)
@@ -41,7 +41,7 @@ def list_users(
 @router.post("", response_model=UserResponse)
 def create_user(
     user_in: UserCreate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     user = auth_service.create_user(db, user_in)
@@ -54,7 +54,7 @@ def get_user(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    if current_user.role not in ["ADMIN", "PRINCIPAL"] and current_user.id != user_id:
+    if current_user.role not in ["SCHOOL_ADMIN", "PRINCIPAL"] and current_user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -69,7 +69,7 @@ def update_user(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    if current_user.role != "ADMIN" and current_user.id != user_id:
+    if current_user.role != "SCHOOL_ADMIN" and current_user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -91,11 +91,17 @@ def update_user(
         user.hashed_password = get_password_hash(user_in.password)
 
     # Only admin can change role or active status
-    if current_user.role == "ADMIN":
+    if current_user.role == "SCHOOL_ADMIN":
         if user_in.is_active is not None:
             user.is_active = user_in.is_active
         if user_in.role is not None:
-            user.role = user_in.role.upper()
+            new_role = user_in.role.upper()
+            if new_role not in {"SCHOOL_ADMIN", "PRINCIPAL", "TEACHER", "STUDENT", "PARENT"}:
+                raise HTTPException(status_code=400, detail="Invalid school role")
+            if new_role == "SCHOOL_ADMIN" and user.role != "SCHOOL_ADMIN":
+                from backend.app.services.entitlement_service import entitlement_service
+                entitlement_service.check_usage(db, "admins")
+            user.role = new_role
 
     db.commit()
     db.refresh(user)
@@ -105,7 +111,7 @@ def update_user(
 @router.delete("/{user_id}")
 def delete_user(
     user_id: int,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     if current_user.id == user_id:
@@ -123,7 +129,7 @@ def delete_user(
 @router.patch("/{user_id}/toggle-status")
 def toggle_user_status(
     user_id: int,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     if current_user.id == user_id:

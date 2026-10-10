@@ -1,4 +1,7 @@
 from typing import List, Optional
+from decimal import Decimal, ROUND_HALF_UP
+import secrets
+from sqlalchemy.exc import IntegrityError
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 from backend.app.database import get_db
@@ -13,11 +16,35 @@ from backend.app.schemas.fee import (
     RazorpayCreateOrderRequest, RazorpayCreateOrderResponse, RazorpayVerifyRequest
 )
 from backend.app.services.fee_service import fee_service
-from backend.app.utils.permissions import require_roles, get_current_active_user
+from backend.app.utils.permissions import require_roles, get_current_active_user, require_feature
 from backend.app.utils.helpers import log_audit_action
 from backend.app.seed.import_vouchers import parse_excel_voucher_file, import_vouchers_to_db
 
-router = APIRouter(prefix="/fees", tags=["Fees"])
+router = APIRouter(prefix="/fees", tags=["Fees"], dependencies=[Depends(require_feature("finance"))])
+
+def _payment_context(db: Session, user: User, fee_id: int, student_id: int):
+    fee = db.query(Fee).filter(Fee.id == fee_id).first()
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not fee or not student or (fee.class_id is not None and fee.class_id != student.class_id):
+        raise HTTPException(status_code=404, detail="Fee or student not found")
+    if user.role == "STUDENT":
+        permitted = bool(user.student_profile and user.student_profile.id == student_id)
+    elif user.role == "PARENT":
+        permitted = bool(user.parent_profile and any(child.id == student_id for child in user.parent_profile.students))
+    else:
+        permitted = user.role == "SCHOOL_ADMIN"
+    if not permitted:
+        raise HTTPException(status_code=403, detail="Cannot pay for this student")
+    return fee, student
+
+def _razorpay_client():
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        raise HTTPException(status_code=503, detail="Online payments are not configured")
+    import razorpay
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+def _paise(value):
+    return int((Decimal(str(value)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 @router.get("", response_model=List[FeeResponse])
 def list_fees(
@@ -29,6 +56,19 @@ def list_fees(
         joinedload(Fee.class_obj),
         joinedload(Fee.academic_year)
     )
+    if current_user.role == "STUDENT":
+        student = current_user.student_profile
+        if not student:
+            return []
+        query = query.filter((Fee.class_id == student.class_id) | Fee.class_id.is_(None))
+    elif current_user.role == "PARENT":
+        parent = current_user.parent_profile
+        if not parent:
+            return []
+        class_ids = {child.class_id for child in parent.students if child.class_id}
+        query = query.filter((Fee.class_id.in_(class_ids)) | Fee.class_id.is_(None))
+    elif current_user.role not in {"SCHOOL_ADMIN", "PRINCIPAL"}:
+        raise HTTPException(status_code=403, detail="Cannot view fees")
     if class_id:
         query = query.filter((Fee.class_id == class_id) | (Fee.class_id == None))
 
@@ -53,7 +93,7 @@ def list_fees(
 @router.post("", response_model=FeeResponse)
 def create_fee(
     fee_in: FeeCreate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     fee = Fee(
@@ -86,7 +126,7 @@ def create_fee(
 @router.delete("/{fee_id}")
 def delete_fee(
     fee_id: int,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     fee = db.query(Fee).filter(Fee.id == fee_id).first()
@@ -101,7 +141,7 @@ def delete_fee(
 @router.post("/payments", response_model=PaymentResponse)
 def record_payment(
     payment_in: PaymentCreate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     payment = fee_service.record_payment(db, payment_in)
@@ -139,7 +179,13 @@ def list_payments(
 
     if current_user.role == "STUDENT" and current_user.student_profile:
         query = query.filter(Payment.student_id == current_user.student_profile.id)
-    elif student_id:
+    elif current_user.role == "PARENT" and current_user.parent_profile:
+        child_ids = [child.id for child in current_user.parent_profile.students]
+        query = query.filter(Payment.student_id.in_(child_ids))
+    elif current_user.role not in ("SCHOOL_ADMIN", "PRINCIPAL"):
+        raise HTTPException(status_code=403, detail="Cannot view payments")
+
+    if student_id:
         query = query.filter(Payment.student_id == student_id)
 
     if fee_id:
@@ -180,13 +226,15 @@ def get_student_fee_summary(
         parent = current_user.parent_profile
         if not parent or not any(s.id == student_id for s in parent.students):
             raise HTTPException(status_code=403, detail="Can only view your child's fee status")
+    elif current_user.role not in ("SCHOOL_ADMIN", "PRINCIPAL"):
+        raise HTTPException(status_code=403, detail="Cannot view fee status")
 
     return fee_service.get_student_fee_summary(db, student_id)
 
 @router.post("/upload-vouchers")
 async def upload_vouchers(
     file: UploadFile = File(...),
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     if not file.filename.endswith((".xlsx", ".xls")):
@@ -225,9 +273,16 @@ def get_payment_receipt(
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
 
-    if current_user.role == "STUDENT" and current_user.student_profile:
-        if payment.student_id != current_user.student_profile.id:
-            raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role == "STUDENT":
+        permitted = bool(current_user.student_profile and payment.student_id == current_user.student_profile.id)
+    elif current_user.role == "PARENT":
+        permitted = bool(current_user.parent_profile and any(
+            child.id == payment.student_id for child in current_user.parent_profile.students
+        ))
+    else:
+        permitted = current_user.role in ("SCHOOL_ADMIN", "PRINCIPAL")
+    if not permitted:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     fee_amount = payment.fee.amount if payment.fee else payment.amount_paid
     discount = payment.discount_amount or 0.0
@@ -257,7 +312,7 @@ def get_payment_receipt(
 @router.post("/reconcile-bank-statement")
 async def reconcile_bank_statement(
     file: UploadFile = File(...),
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     if not file.filename.endswith((".csv", ".txt")):
@@ -315,7 +370,7 @@ async def reconcile_bank_statement(
 def void_payment(
     payment_id: int,
     reason: str = Query(..., description="Reason for voiding/refunding receipt"),
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     payment = fee_service.void_payment(db, payment_id, reason)
@@ -335,7 +390,7 @@ def void_payment(
 def rollover_academic_year(
     from_year_id: int = Query(...),
     to_year_id: int = Query(...),
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     res = fee_service.rollover_academic_year(db, from_year_id, to_year_id)
@@ -349,7 +404,7 @@ def rollover_academic_year(
 @router.get("/daily-collection-register")
 def get_daily_collection_register(
     target_date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format"),
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     from datetime import datetime, date
@@ -362,17 +417,24 @@ def create_razorpay_order(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    import razorpay
-    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-    
-    amount_in_paise = int(req.amount * 100)
+    fee, student = _payment_context(db, current_user, req.fee_id, req.student_id)
+    already_paid = sum(p.amount_paid + p.discount_amount for p in db.query(Payment).filter(
+        Payment.fee_id == fee.id,
+        Payment.student_id == student.id,
+        Payment.payment_status == "PAID"
+    ).all())
+    amount_in_paise = _paise(max(0, fee.amount - already_paid))
+    if amount_in_paise < 100:
+        raise HTTPException(status_code=400, detail="No payable balance remains")
+    client = _razorpay_client()
     order_data = {
         "amount": amount_in_paise,
         "currency": "INR",
-        "receipt": f"receipt_fee_{req.fee_id}_{current_user.id}",
+        "receipt": f"school_fee_{secrets.token_hex(8)}",
         "notes": {
-            "fee_id": req.fee_id,
-            "user_id": current_user.id
+            "fee_id": str(fee.id),
+            "student_id": str(student.id),
+            "user_id": str(current_user.id)
         }
     }
     
@@ -385,10 +447,10 @@ def create_razorpay_order(
             "key_id": settings.RAZORPAY_KEY_ID,
             "fee_id": req.fee_id
         }
-    except Exception as e:
+    except Exception:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create Razorpay Order: {str(e)}"
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to start online payment"
         )
 
 @router.post("/razorpay/verify")
@@ -398,7 +460,8 @@ def verify_razorpay_payment(
     db: Session = Depends(get_db)
 ):
     import razorpay
-    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+    _payment_context(db, current_user, req.fee_id, req.student_id)
+    client = _razorpay_client()
     
     # 1. Verify Razorpay Signature
     params_dict = {
@@ -413,12 +476,41 @@ def verify_razorpay_payment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Razorpay payment signature verification failed."
         )
-        
-    # 2. Signature valid -> Record Payment in database
+    # A valid signature only binds IDs. Fetch provider records to verify the
+    # captured amount and the server-created order intent before recording it.
+    try:
+        order = client.order.fetch(req.razorpay_order_id)
+        provider_payment = client.payment.fetch(req.razorpay_payment_id)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Unable to verify payment with provider")
+
+    notes = order.get("notes") or {}
+    valid = (
+        str(notes.get("fee_id")) == str(req.fee_id)
+        and str(notes.get("student_id")) == str(req.student_id)
+        and str(notes.get("user_id")) == str(current_user.id)
+        and provider_payment.get("order_id") == req.razorpay_order_id
+        and provider_payment.get("status") == "captured"
+        and provider_payment.get("currency") == "INR"
+        and order.get("currency") == "INR"
+        and provider_payment.get("amount") == order.get("amount")
+        and isinstance(order.get("amount"), int)
+        and order["amount"] > 0
+    )
+    if not valid:
+        raise HTTPException(status_code=400, detail="Payment verification failed")
+
+    existing = db.query(Payment).filter(Payment.transaction_id == req.razorpay_payment_id).first()
+    if existing:
+        if existing.fee_id != req.fee_id or existing.student_id != req.student_id:
+            raise HTTPException(status_code=409, detail="Payment already recorded for another fee")
+        return {"status": "SUCCESS", "message": "Payment already recorded", "payment_id": existing.id,
+                "transaction_id": existing.transaction_id}
+
     payment_create = PaymentCreate(
         fee_id=req.fee_id,
         student_id=req.student_id,
-        amount_paid=req.amount_paid,
+        amount_paid=order["amount"] / 100,
         discount_amount=0.0,
         payment_method="Online (Razorpay)",
         payment_status="PAID",
@@ -426,10 +518,17 @@ def verify_razorpay_payment(
         remarks=f"Razorpay Payment Verified. Order: {req.razorpay_order_id}"
     )
     
-    payment = fee_service.record_payment(db, payment_create)
+    try:
+        payment = fee_service.record_payment(db, payment_create)
+    except IntegrityError:
+        db.rollback()
+        existing = db.query(Payment).filter(Payment.transaction_id == req.razorpay_payment_id).first()
+        if not existing or existing.fee_id != req.fee_id or existing.student_id != req.student_id:
+            raise HTTPException(status_code=409, detail="Payment could not be recorded")
+        payment = existing
     log_audit_action(
         db, "RAZORPAY_PAYMENT_VERIFIED", "Payment", str(payment.id),
-        f"Razorpay payment of ₹{req.amount_paid} verified for Student #{req.student_id} (Txn: {req.razorpay_payment_id})",
+        f"Razorpay payment of ₹{payment.amount_paid} verified for Student #{req.student_id} (Txn: {req.razorpay_payment_id})",
         current_user.id
     )
     
@@ -439,4 +538,3 @@ def verify_razorpay_payment(
         "payment_id": payment.id,
         "transaction_id": req.razorpay_payment_id
     }
-

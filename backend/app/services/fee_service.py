@@ -63,7 +63,7 @@ class FeeService:
             payments = db.query(Payment).filter(
                 Payment.fee_id == fee.id,
                 Payment.student_id == student_id,
-                ~Payment.payment_status.in_(["CANCELLED", "VOID", "REFUNDED"])
+                Payment.payment_status.in_(["PAID", "PARTIAL"])
             ).all()
             paid_amount = sum(p.amount_paid for p in payments)
             discount_amount = sum(p.discount_amount for p in payments)
@@ -98,7 +98,7 @@ class FeeService:
             class_name=student.class_obj.name if student.class_obj else None,
             total_fees=round(total_fees, 2),
             total_paid=round(total_paid, 2),
-            remaining_balance=round(max(0.0, total_fees - total_paid), 2),
+            remaining_balance=round(sum(item.balance for item in items), 2),
             items=items
         )
 

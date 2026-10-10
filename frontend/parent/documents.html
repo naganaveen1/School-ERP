@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/frontend/css/forms.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
 </head>
 <body>
   <div class="app-wrapper">
@@ -118,7 +120,7 @@
             <td>${d.file_size ? `${(d.file_size / 1024).toFixed(1)} KB` : '—'}</td>
             <td>
               <div class="table-actions">
-                <a href="/api/documents/file/${d.file_path}?token=${auth.getToken()}" target="_blank" class="table-action-btn" download>📥 Download</a>
+                <a href="/api/documents/file/${d.file_path}" target="_blank" class="table-action-btn" download>📥 Download</a>
                 <button class="table-action-btn text-danger ms-2" onclick="deleteDoc(${d.id})">🗑️</button>
               </div>
             </td>

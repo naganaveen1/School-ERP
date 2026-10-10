@@ -9,7 +9,7 @@ from backend.app.models.subject import Subject
 from backend.app.models.timetable import Timetable
 from backend.app.models.submission import Submission
 from backend.app.models.assignment import Assignment
-from backend.app.utils.permissions import require_roles
+from backend.app.utils.permissions import require_roles, require_feature
 
 router = APIRouter(prefix="/teacher", tags=["Teacher Portal"])
 
@@ -112,7 +112,7 @@ def get_teacher_timetable(
         for e in entries
     ]
 
-@router.get("/submissions")
+@router.get("/submissions", dependencies=[Depends(require_feature("assignments"))])
 def get_teacher_submissions(
     current_user: User = Depends(require_roles(["TEACHER"])),
     db: Session = Depends(get_db)

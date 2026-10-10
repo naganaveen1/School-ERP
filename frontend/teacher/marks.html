@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/frontend/css/forms.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
 </head>
 <body>
   <div class="app-wrapper">
@@ -88,7 +90,7 @@
   <script src="/frontend/js/components.js"></script>
   <script src="/frontend/js/results.js"></script>
   <script>
-    if (permissions.enforcePageAccess(['TEACHER', 'ADMIN'])) {
+    if (permissions.enforcePageAccess(['TEACHER', 'SCHOOL_ADMIN'])) {
       components.renderLayout('Enter Marks');
       resultsManager.initMarksEntry();
     }

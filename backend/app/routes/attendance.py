@@ -11,17 +11,27 @@ from backend.app.schemas.attendance import (
     AttendanceResponse, AttendanceStats
 )
 from backend.app.services.attendance_service import attendance_service
-from backend.app.utils.permissions import require_roles, get_current_active_user
+from backend.app.utils.permissions import require_roles, get_current_active_user, require_feature
 from backend.app.utils.helpers import log_audit_action
+from backend.app.utils.school_access import parent_child_ids, teacher_class_ids
+from backend.app.routes.students import verify_student_access
 
-router = APIRouter(prefix="/attendance", tags=["Attendance"])
+router = APIRouter(prefix="/attendance", tags=["Attendance"], dependencies=[Depends(require_feature("attendance"))])
 
 @router.post("", response_model=List[AttendanceResponse])
 def mark_attendance(
     bulk_in: AttendanceBulkCreate,
-    current_user: User = Depends(require_roles(["ADMIN", "TEACHER", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "TEACHER", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
+    if current_user.role == "TEACHER" and bulk_in.class_id not in teacher_class_ids(current_user):
+        raise HTTPException(status_code=403, detail="Class is not assigned to this teacher")
+    student_ids = {item.student_id for item in bulk_in.records}
+    matched = db.query(Student.id).filter(Student.id.in_(student_ids),
+                                          Student.class_id == bulk_in.class_id,
+                                          Student.section_id == bulk_in.section_id).count()
+    if matched != len(student_ids) or len(student_ids) != len(bulk_in.records):
+        raise HTTPException(status_code=400, detail="Attendance students must belong to the selected class and section")
     saved = attendance_service.mark_attendance(
         db=db,
         class_id=bulk_in.class_id,
@@ -73,6 +83,17 @@ def get_attendance(
         joinedload(Attendance.section)
     )
 
+    if current_user.role == "STUDENT":
+        if not current_user.student_profile:
+            return []
+        query = query.filter(Attendance.student_id == current_user.student_profile.id)
+    elif current_user.role == "PARENT":
+        query = query.filter(Attendance.student_id.in_(parent_child_ids(current_user)))
+    elif current_user.role == "TEACHER":
+        query = query.filter(Attendance.class_id.in_(teacher_class_ids(current_user)))
+    elif current_user.role not in {"SCHOOL_ADMIN", "PRINCIPAL"}:
+        return []
+
     if att_date:
         query = query.filter(Attendance.date == att_date)
     if class_id:
@@ -111,6 +132,7 @@ def get_student_attendance(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
+    verify_student_access(student_id, current_user, db)
     stats = attendance_service.get_student_stats(db, student_id, start_date, end_date)
     query = db.query(Attendance).filter(Attendance.student_id == student_id)
     if start_date:
@@ -140,6 +162,11 @@ def get_class_attendance_summary(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
+    if current_user.role == "TEACHER":
+        if class_id not in teacher_class_ids(current_user):
+            raise HTTPException(status_code=403, detail="Class is not assigned to this teacher")
+    elif current_user.role not in {"SCHOOL_ADMIN", "PRINCIPAL"}:
+        raise HTTPException(status_code=403, detail="School staff access required")
     if not att_date:
         att_date = date.today()
 
@@ -172,12 +199,14 @@ def get_class_attendance_summary(
 def update_attendance_record(
     attendance_id: int,
     att_in: AttendanceUpdate,
-    current_user: User = Depends(require_roles(["ADMIN", "TEACHER", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "TEACHER", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     att = db.query(Attendance).filter(Attendance.id == attendance_id).first()
     if not att:
         raise HTTPException(status_code=404, detail="Attendance record not found")
+    if current_user.role == "TEACHER" and att.class_id not in teacher_class_ids(current_user):
+        raise HTTPException(status_code=403, detail="Class is not assigned to this teacher")
 
     att.status = att_in.status
     if att_in.remarks is not None:

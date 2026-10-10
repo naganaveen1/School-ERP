@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/frontend/css/dashboard.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
 </head>
 <body>
   <div class="app-wrapper">
@@ -169,7 +171,7 @@
   <script src="/frontend/js/components.js"></script>
   <script src="/frontend/js/reports.js"></script>
   <script>
-    if (permissions.enforcePageAccess(['PRINCIPAL', 'ADMIN'])) {
+    if (permissions.enforcePageAccess(['PRINCIPAL', 'SCHOOL_ADMIN'])) {
       components.renderLayout('Executive Reports');
       reportsManager.init();
     }

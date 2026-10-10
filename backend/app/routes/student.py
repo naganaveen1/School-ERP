@@ -10,9 +10,10 @@ from backend.app.models.assignment import Assignment
 from backend.app.models.result import Result
 from backend.app.models.exam import Exam
 from backend.app.models.study_material import StudyMaterial
+from backend.app.models.teacher import Teacher
 from backend.app.services.attendance_service import attendance_service
 from backend.app.services.fee_service import fee_service
-from backend.app.utils.permissions import require_roles
+from backend.app.utils.permissions import require_roles, require_feature
 from backend.app.utils.helpers import calculate_percentage
 
 router = APIRouter(prefix="/student", tags=["Student Portal"])
@@ -70,16 +71,14 @@ def get_student_timetable(
     db: Session = Depends(get_db)
 ):
     student = get_current_student(current_user, db)
-    if not student.class_id:
+    if not student.class_id or not student.section_id:
         return []
 
     query = db.query(Timetable).options(
         joinedload(Timetable.subject),
-        joinedload(Timetable.teacher).joinedload(User.teacher_profile)
-    ).filter(Timetable.class_id == student.class_id)
-
-    if student.section_id:
-        query = query.filter(Timetable.section_id == student.section_id)
+        joinedload(Timetable.teacher).joinedload(Teacher.user)
+    ).filter(Timetable.class_id == student.class_id,
+             Timetable.section_id == student.section_id)
 
     entries = query.order_by(Timetable.day_of_week, Timetable.start_time).all()
     return [
@@ -95,7 +94,7 @@ def get_student_timetable(
         for e in entries
     ]
 
-@router.get("/attendance")
+@router.get("/attendance", dependencies=[Depends(require_feature("attendance"))])
 def get_my_attendance(
     current_user: User = Depends(require_roles(["STUDENT"])),
     db: Session = Depends(get_db)
@@ -116,7 +115,7 @@ def get_my_attendance(
         ]
     }
 
-@router.get("/assignments")
+@router.get("/assignments", dependencies=[Depends(require_feature("assignments"))])
 def get_my_assignments(
     current_user: User = Depends(require_roles(["STUDENT"])),
     db: Session = Depends(get_db)
@@ -127,9 +126,12 @@ def get_my_assignments(
 
     assignments = db.query(Assignment).options(
         joinedload(Assignment.subject),
-        joinedload(Assignment.teacher).joinedload(User.teacher_profile),
+        joinedload(Assignment.teacher).joinedload(Teacher.user),
         joinedload(Assignment.submissions)
-    ).filter(Assignment.class_id == student.class_id).order_by(Assignment.due_date.desc()).all()
+    ).filter(
+        Assignment.class_id == student.class_id,
+        (Assignment.section_id.is_(None)) | (Assignment.section_id == student.section_id),
+    ).order_by(Assignment.due_date.desc()).all()
 
     items = []
     for a in assignments:
@@ -154,7 +156,7 @@ def get_my_assignments(
         })
     return items
 
-@router.get("/results")
+@router.get("/results", dependencies=[Depends(require_feature("exams"))])
 def get_my_results(
     current_user: User = Depends(require_roles(["STUDENT"])),
     db: Session = Depends(get_db)
@@ -182,7 +184,7 @@ def get_my_results(
         for r in results
     ]
 
-@router.get("/fees")
+@router.get("/fees", dependencies=[Depends(require_feature("finance"))])
 def get_my_fees(
     current_user: User = Depends(require_roles(["STUDENT"])),
     db: Session = Depends(get_db)
@@ -190,7 +192,7 @@ def get_my_fees(
     student = get_current_student(current_user, db)
     return fee_service.get_student_fee_summary(db, student.id)
 
-@router.get("/study-materials")
+@router.get("/study-materials", dependencies=[Depends(require_feature("assignments"))])
 def get_my_study_materials(
     current_user: User = Depends(require_roles(["STUDENT"])),
     db: Session = Depends(get_db)

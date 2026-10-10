@@ -25,7 +25,7 @@ def get_academic_years(
 @router.post("/academic-years", response_model=AcademicYearResponse)
 def create_academic_year(
     ay_in: AcademicYearCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     if db.query(AcademicYear).filter(AcademicYear.name == ay_in.name).first():
@@ -48,7 +48,7 @@ def create_academic_year(
 @router.patch("/academic-years/{ay_id}/set-current")
 def set_current_academic_year(
     ay_id: int,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     ay = db.query(AcademicYear).filter(AcademicYear.id == ay_id).first()
@@ -102,7 +102,7 @@ def get_classes(
 @router.post("", response_model=ClassResponse)
 def create_class(
     class_in: ClassCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     cls = ClassModel(
@@ -128,7 +128,7 @@ def create_class(
 def update_class(
     class_id: int,
     class_in: ClassCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     cls = db.query(ClassModel).filter(ClassModel.id == class_id).first()
@@ -154,7 +154,7 @@ def update_class(
 @router.delete("/{class_id}")
 def delete_class(
     class_id: int,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     cls = db.query(ClassModel).filter(ClassModel.id == class_id).first()
@@ -194,7 +194,7 @@ def get_class_sections(
 def create_section(
     class_id: int,
     sec_in: SectionCreate,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     cls = db.query(ClassModel).filter(ClassModel.id == class_id).first()
@@ -223,7 +223,7 @@ def create_section(
 @router.delete("/sections/{section_id}")
 def delete_section(
     section_id: int,
-    current_user = Depends(require_roles(["ADMIN"])),
+    current_user = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     sec = db.query(Section).filter(Section.id == section_id).first()

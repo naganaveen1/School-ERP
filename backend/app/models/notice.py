@@ -2,8 +2,9 @@ from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Foreign
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.app.database import Base
+from backend.app.models.tenant import TenantOwnedMixin
 
-class Notice(Base):
+class Notice(TenantOwnedMixin, Base):
     __tablename__ = "notices"
 
     id = Column(Integer, primary_key=True, index=True)

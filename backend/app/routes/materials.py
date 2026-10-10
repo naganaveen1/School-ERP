@@ -8,10 +8,11 @@ from backend.app.models.teacher import Teacher
 from backend.app.models.study_material import StudyMaterial
 from backend.app.schemas.assignment import StudyMaterialResponse
 from backend.app.services.file_service import file_service
-from backend.app.utils.permissions import require_roles, get_current_active_user
+from backend.app.utils.permissions import require_roles, get_current_active_user, require_feature
 from backend.app.utils.helpers import log_audit_action
+from backend.app.utils.school_access import teacher_for_subject
 
-router = APIRouter(prefix="/materials", tags=["Study Materials"])
+router = APIRouter(prefix="/materials", tags=["Study Materials"], dependencies=[Depends(require_feature("assignments"))])
 
 @router.get("", response_model=List[StudyMaterialResponse])
 def list_materials(
@@ -26,9 +27,24 @@ def list_materials(
         joinedload(StudyMaterial.teacher).joinedload(Teacher.user)
     )
 
-    if current_user.role == "STUDENT" and current_user.student_profile:
-        query = query.filter(StudyMaterial.class_id == current_user.student_profile.class_id)
-    elif class_id:
+    if current_user.role == "STUDENT":
+        student = current_user.student_profile
+        if not student or student.class_id is None:
+            return []
+        query = query.filter(StudyMaterial.class_id == student.class_id)
+    elif current_user.role == "PARENT":
+        children = current_user.parent_profile.students if current_user.parent_profile else []
+        if not children:
+            return []
+        query = query.filter(StudyMaterial.class_id.in_([child.class_id for child in children if child.class_id]))
+    elif current_user.role == "TEACHER":
+        teacher = current_user.teacher_profile
+        if not teacher:
+            return []
+        query = query.filter(StudyMaterial.teacher_id == teacher.id)
+    elif current_user.role not in {"SCHOOL_ADMIN", "PRINCIPAL"}:
+        return []
+    if class_id:
         query = query.filter(StudyMaterial.class_id == class_id)
 
     if subject_id:
@@ -62,19 +78,12 @@ def upload_study_material(
     subject_id: int = Form(...),
     description: Optional[str] = Form(None),
     file: UploadFile = File(...),
-    current_user: User = Depends(require_roles(["TEACHER", "ADMIN"])),
+    current_user: User = Depends(require_roles(["TEACHER", "SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
-    teacher_id = None
-    if current_user.role == "TEACHER":
-        if not current_user.teacher_profile:
-            raise HTTPException(status_code=400, detail="Teacher profile not found")
-        teacher_id = current_user.teacher_profile.id
-    else:
-        first_teacher = db.query(Teacher).first()
-        teacher_id = first_teacher.id if first_teacher else 1
+    teacher_id = teacher_for_subject(db, current_user, class_id, subject_id)
 
-    stored_path = file_service.save_upload_file(file, "study-materials")
+    stored_path = file_service.save_upload_file(file, "study-materials", current_user.tenant_id)
     file_type = Path(file.filename).suffix.lstrip(".")
 
     material = StudyMaterial(
@@ -87,7 +96,11 @@ def upload_study_material(
         file_type=file_type
     )
     db.add(material)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        file_service.delete_file(stored_path)
+        raise
     db.refresh(material)
 
     log_audit_action(db, "STUDY_MATERIAL_UPLOAD", "StudyMaterial", str(material.id), f"Uploaded {title}", current_user.id)
@@ -108,7 +121,7 @@ def upload_study_material(
 @router.delete("/{material_id}")
 def delete_study_material(
     material_id: int,
-    current_user: User = Depends(require_roles(["TEACHER", "ADMIN"])),
+    current_user: User = Depends(require_roles(["TEACHER", "SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     m = db.query(StudyMaterial).filter(StudyMaterial.id == material_id).first()

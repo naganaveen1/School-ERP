@@ -8,6 +8,7 @@ from backend.app.models.department import Department
 from backend.app.schemas.teacher import TeacherCreate, TeacherUpdate, TeacherResponse
 from backend.app.schemas.user import UserCreate, UserResponse
 from backend.app.services.auth_service import auth_service
+from backend.app.services.entitlement_service import entitlement_service
 from backend.app.utils.permissions import require_roles, get_current_active_user
 from backend.app.utils.pagination import paginate_query
 from backend.app.utils.helpers import log_audit_action
@@ -20,13 +21,15 @@ def list_teachers(
     department_id: Optional[int] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL", "TEACHER"])),
     db: Session = Depends(get_db)
 ):
     query = db.query(Teacher).join(Teacher.user).options(
         joinedload(Teacher.user),
         joinedload(Teacher.department)
     )
+    if current_user.role == "TEACHER":
+        query = query.filter(Teacher.user_id == current_user.id)
 
     if search:
         query = query.filter(
@@ -63,9 +66,10 @@ def list_teachers(
 @router.post("", response_model=TeacherResponse)
 def create_teacher(
     teacher_in: TeacherCreate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
+    entitlement_service.check_usage(db, "teachers")
     if db.query(Teacher).filter(Teacher.employee_id == teacher_in.employee_id).first():
         raise HTTPException(status_code=400, detail="Employee ID already exists")
 
@@ -116,7 +120,7 @@ def create_teacher(
 @router.get("/{teacher_id}")
 def get_teacher(
     teacher_id: int,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL", "TEACHER"])),
     db: Session = Depends(get_db)
 ):
     teacher = db.query(Teacher).options(
@@ -128,6 +132,8 @@ def get_teacher(
 
     if not teacher:
         raise HTTPException(status_code=404, detail="Teacher not found")
+    if current_user.role == "TEACHER" and teacher.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     subjects_list = [
         {"id": s.id, "name": s.name, "code": s.code, "class_name": s.class_obj.name if s.class_obj else ""}
@@ -160,7 +166,7 @@ def get_teacher(
 def update_teacher(
     teacher_id: int,
     teacher_in: TeacherUpdate,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     teacher = db.query(Teacher).filter(Teacher.id == teacher_id).first()
@@ -192,7 +198,7 @@ def update_teacher(
 @router.delete("/{teacher_id}")
 def delete_teacher(
     teacher_id: int,
-    current_user: User = Depends(require_roles(["ADMIN"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     teacher = db.query(Teacher).filter(Teacher.id == teacher_id).first()

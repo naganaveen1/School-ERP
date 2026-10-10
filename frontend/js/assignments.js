@@ -206,7 +206,7 @@ const assignmentsManager = {
           <td>${s.marks_obtained !== null ? `${s.marks_obtained} / ${s.max_marks}` : '—'}</td>
           <td>
             <div class="table-actions">
-              <a href="/api/documents/file/${s.file_path}?token=${auth.getToken()}" target="_blank" class="table-action-btn" download>📥 Download</a>
+              <a href="/api/documents/file/${s.file_path}" target="_blank" class="table-action-btn" download>📥 Download</a>
               <button class="table-action-btn text-primary" onclick="assignmentsManager.openGradeModal(${s.id}, ${s.marks_obtained || 0}, '${s.feedback || ''}')">✍️ Grade</button>
             </div>
           </td>

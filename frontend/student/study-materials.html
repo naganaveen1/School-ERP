@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/frontend/css/forms.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
 </head>
 <body>
   <div class="app-wrapper">
@@ -71,7 +73,7 @@
               </div>
               <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-auto">
                 <span class="text-muted small">${utils.formatDate(m.upload_date)}</span>
-                <a href="/api/documents/file/${m.file_path}?token=${auth.getToken()}" target="_blank" class="btn btn-sm btn-outline-primary" download>
+                <a href="/api/documents/file/${m.file_path}" target="_blank" class="btn btn-sm btn-outline-primary" download>
                   📥 Download
                 </a>
               </div>

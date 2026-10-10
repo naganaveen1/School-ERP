@@ -2,10 +2,29 @@
  * Reusable Components and Layout Renderer
  */
 const components = {
+  escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+  },
+
+  iconFor(label) {
+    const text = label.toLowerCase();
+    let path = '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>';
+    if (/student|teacher|parent|user|children|profile/.test(text)) path = '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>';
+    else if (/attendance|leave|calendar|event|year|timetable/.test(text)) path = '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>';
+    else if (/fee|payment/.test(text)) path = '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20m-15 5h4"/>';
+    else if (/class|section|department|school/.test(text)) path = '<path d="M3 21V8l9-5 9 5v13M3 10h18M9 21v-6h6v6"/>';
+    else if (/notice|notification|message/.test(text)) path = '<path d="M4 5h16v12H8l-4 4V5Z"/><path d="M8 9h8m-8 4h5"/>';
+    else if (/report|result|performance|audit/.test(text)) path = '<path d="M5 20V4h14v16H5Z"/><path d="m8 15 3-3 2 2 3-4"/>';
+    else if (/assignment|exam|submission|material|document|subject/.test(text)) path = '<path d="M6 2h9l4 4v16H6V2Z"/><path d="M15 2v5h4M9 11h7m-7 4h7"/>';
+    else if (/setting/.test(text)) path = '<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/>';
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+  },
   getNavItems(role) {
     const r = (role || '').toUpperCase();
     switch (r) {
-      case 'ADMIN':
+      case 'SCHOOL_ADMIN':
         return [
           { section: 'Main' },
           { label: 'Dashboard', icon: '📊', url: '/frontend/admin/dashboard.html' },
@@ -22,6 +41,7 @@ const components = {
           { label: 'Timetable', icon: '⏰', url: '/frontend/admin/timetable.html' },
           { section: 'Finance & Communications' },
           { label: 'Fees & Payments', icon: '💳', url: '/frontend/admin/fees.html' },
+          { label: 'School Subscription', icon: '💳', url: '/frontend/school/subscription.html' },
           { label: 'Notices', icon: '📢', url: '/frontend/admin/notices.html' },
           { label: 'Reports', icon: '📈', url: '/frontend/admin/reports.html' },
           { label: 'Audit Logs', icon: '📜', url: '/frontend/admin/audit-logs.html' },
@@ -102,6 +122,32 @@ const components = {
 
   renderLayout(pageTitle = 'Dashboard') {
     const user = auth.getUser() || { full_name: 'User', role: 'GUEST' };
+    if (user.school_slug) {
+      api.get(`/schools/${encodeURIComponent(user.school_slug)}/branding`).then(branding => {
+        if (/^#[0-9a-fA-F]{6}$/.test(branding.primary_color || '')) {
+          document.documentElement.style.setProperty('--primary', branding.primary_color);
+        }
+        if (branding.name) {
+          const brand = document.querySelector('.sidebar-brand');
+          if (brand) brand.textContent = branding.name;
+        }
+        if (branding.logo_url && /^https:\/\//i.test(branding.logo_url)) {
+          const mark = document.querySelector('.sidebar-header .brand-mark');
+          if (mark) {
+            const logo = document.createElement('img');
+            logo.src = branding.logo_url;
+            logo.alt = '';
+            logo.style.cssText = 'max-width:28px;max-height:28px;object-fit:contain';
+            mark.replaceChildren(logo);
+          }
+        }
+        if (branding.favicon_url) {
+          let icon = document.querySelector('link[rel="icon"]');
+          if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; document.head.append(icon); }
+          icon.href = branding.favicon_url;
+        }
+      }).catch(() => {});
+    }
     const navItems = this.getNavItems(user.role);
     const currentPath = window.location.pathname;
 
@@ -109,13 +155,13 @@ const components = {
     let navHtml = '';
     navItems.forEach(item => {
       if (item.section) {
-        navHtml += `<div class="nav-section-title">${item.section}</div>`;
+        navHtml += `<div class="nav-section-title">${this.escapeHTML(item.section)}</div>`;
       } else {
         const isActive = currentPath === item.url || currentPath.endsWith(item.url.split('/').pop());
         navHtml += `
-          <a href="${item.url}" class="sidebar-link ${isActive ? 'active' : ''}">
-            <span class="icon">${item.icon}</span>
-            <span>${item.label}</span>
+          <a href="${item.url}" class="sidebar-link ${isActive ? 'active' : ''}" ${isActive ? 'aria-current="page"' : ''} title="${this.escapeHTML(item.label)}">
+            <span class="icon">${this.iconFor(item.label)}</span>
+            <span>${this.escapeHTML(item.label)}</span>
           </a>
         `;
       }
@@ -123,17 +169,20 @@ const components = {
 
     const sidebarContainer = document.getElementById('sidebar-container');
     if (sidebarContainer) {
+      if (localStorage.getItem('school-erp-sidebar') === 'collapsed') {
+        document.querySelector('.app-wrapper')?.classList.add('sidebar-collapsed');
+      }
       sidebarContainer.innerHTML = `
         <div class="sidebar-backdrop" onclick="components.toggleSidebar()"></div>
         <aside class="app-sidebar" id="app-sidebar">
           <div class="sidebar-header">
-            <div style="font-size:1.4rem;">🎓</div>
+            <div class="brand-mark">${this.iconFor('School')}</div>
             <div>
-              <div class="sidebar-brand">School ERP</div>
-              <span class="sidebar-role-badge">${user.role}</span>
+              <div class="sidebar-brand">${this.escapeHTML(user.school_name || 'School ERP')}</div>
+              <span class="sidebar-role-badge">${this.escapeHTML(user.role)}</span>
             </div>
           </div>
-          <nav class="sidebar-nav">
+          <nav class="sidebar-nav" aria-label="Primary navigation">
             ${navHtml}
           </nav>
         </aside>
@@ -146,17 +195,22 @@ const components = {
       navbarContainer.innerHTML = `
         <header class="app-navbar">
           <div class="d-flex align-items-center gap-3">
-            <button class="btn btn-sm btn-outline-secondary sidebar-toggle-btn" onclick="components.toggleSidebar()">
-              ☰
+            <button class="shell-action" type="button" aria-label="Toggle navigation" aria-controls="app-sidebar" onclick="components.toggleSidebar()">
+              <span class="shell-icon">${this.iconFor('menu')}</span>
             </button>
-            <h5 class="m-0 fw-bold d-none d-sm-block text-dark">${pageTitle}</h5>
+            <span class="shell-title d-none d-sm-block">${this.escapeHTML(pageTitle)}</span>
           </div>
 
           <div class="d-flex align-items-center gap-3">
+            <select class="form-select form-select-sm" aria-label="Color theme" title="Color theme" onchange="schoolTheme.setPreference(this.value)" style="width:auto; min-height:36px;">
+              <option value="system" ${schoolTheme.getPreference() === 'system' ? 'selected' : ''}>System</option>
+              <option value="light" ${schoolTheme.getPreference() === 'light' ? 'selected' : ''}>Light</option>
+              <option value="dark" ${schoolTheme.getPreference() === 'dark' ? 'selected' : ''}>Dark</option>
+            </select>
             <!-- Notifications Bell -->
             <div class="dropdown">
-              <button class="btn btn-light position-relative p-2" type="button" id="notifDropdown" data-bs-toggle="dropdown" aria-expanded="false" onclick="components.loadNotifications()">
-                🔔
+              <button class="shell-action position-relative" type="button" id="notifDropdown" aria-label="Notifications" data-bs-toggle="dropdown" aria-expanded="false" onclick="components.loadNotifications()">
+                <span class="shell-icon">${this.iconFor('notifications')}</span>
                 <span id="notif-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size:0.65rem;">
                   0
                 </span>
@@ -171,19 +225,19 @@ const components = {
             <div class="dropdown">
               <button class="navbar-user-btn" type="button" id="userMenuBtn" data-bs-toggle="dropdown" aria-expanded="false">
                 <div class="user-avatar-placeholder">
-                  ${user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+                  ${this.escapeHTML(user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U')}
                 </div>
                 <div class="text-start d-none d-md-block">
-                  <div style="font-size: 0.85rem; font-weight: 600; line-height: 1.2;">${user.full_name}</div>
-                  <div style="font-size: 0.7rem; color: var(--text-muted);">${user.role}</div>
+                  <div style="font-size: 0.85rem; font-weight: 600; line-height: 1.2;">${this.escapeHTML(user.full_name)}</div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted);">${this.escapeHTML(user.role)}</div>
                 </div>
               </button>
               <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="userMenuBtn">
-                <li><h6 class="dropdown-header">${user.email || user.username}</h6></li>
+                <li><h6 class="dropdown-header">${this.escapeHTML(user.email || user.username)}</h6></li>
                 <li><hr class="dropdown-divider"></li>
                 <li>
                   <a class="dropdown-item text-danger fw-semibold" href="javascript:void(0)" onclick="auth.logout()">
-                    🚪 Log Out
+                    Log out
                   </a>
                 </li>
               </ul>
@@ -193,6 +247,26 @@ const components = {
       `;
     }
 
+    // Existing role dashboards share the same stat markup. Replace their
+    // inconsistent emoji decorations with the shell's icon system.
+    document.querySelectorAll('.stat-card .stat-icon').forEach(icon => {
+      const label = icon.closest('.stat-card')?.querySelector('.stat-label')?.textContent || 'Dashboard';
+      icon.innerHTML = this.iconFor(label);
+    });
+
+    document.querySelectorAll('.page-content button, .page-content a').forEach(control => {
+      const textNode = Array.from(control.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+      if (!textNode) return;
+      const match = textNode.textContent.match(/^\s*[\p{Extended_Pictographic}\uFE0F\u200D]+\s*/u);
+      if (!match) return;
+      const label = control.textContent.replace(match[0], '').trim();
+      textNode.textContent = textNode.textContent.slice(match[0].length);
+      const icon = document.createElement('span');
+      icon.className = 'inline-icon';
+      icon.innerHTML = this.iconFor(label);
+      control.insertBefore(icon, textNode);
+    });
+
     // Load notification count initially
     this.checkUnreadNotifications();
   },
@@ -200,8 +274,13 @@ const components = {
   toggleSidebar() {
     const sidebar = document.getElementById('app-sidebar');
     const backdrop = document.querySelector('.sidebar-backdrop');
-    if (sidebar) sidebar.classList.toggle('show');
-    if (backdrop) backdrop.classList.toggle('show');
+    if (window.matchMedia('(min-width: 992px)').matches) {
+      const collapsed = document.querySelector('.app-wrapper')?.classList.toggle('sidebar-collapsed');
+      localStorage.setItem('school-erp-sidebar', collapsed ? 'collapsed' : 'expanded');
+    } else {
+      if (sidebar) sidebar.classList.toggle('show');
+      if (backdrop) backdrop.classList.toggle('show');
+    }
   },
 
   async checkUnreadNotifications() {
@@ -243,8 +322,8 @@ const components = {
       notifs.slice(0, 8).forEach(n => {
         html += `
           <li class="p-2 border-bottom ${n.is_read ? 'bg-white' : 'bg-light'}" style="font-size:0.8rem; cursor:pointer;" onclick="components.readNotification(${n.id})">
-            <div class="fw-semibold text-dark">${n.title}</div>
-            <div class="text-secondary small text-truncate">${n.message}</div>
+            <div class="fw-semibold text-dark">${this.escapeHTML(n.title)}</div>
+            <div class="text-secondary small text-truncate">${this.escapeHTML(n.message)}</div>
             <div class="text-muted" style="font-size:0.7rem;">${utils.formatDate(n.created_at)}</div>
           </li>
         `;

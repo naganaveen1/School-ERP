@@ -10,7 +10,7 @@ from backend.app.models.result import Result
 from backend.app.models.exam import Exam
 from backend.app.services.attendance_service import attendance_service
 from backend.app.services.fee_service import fee_service
-from backend.app.utils.permissions import require_roles
+from backend.app.utils.permissions import require_roles, require_feature
 from backend.app.utils.helpers import calculate_percentage
 
 router = APIRouter(prefix="/parent", tags=["Parent Portal"])
@@ -76,7 +76,7 @@ def get_child_profile(
         "address": student.address
     }
 
-@router.get("/child/{child_id}/attendance")
+@router.get("/child/{child_id}/attendance", dependencies=[Depends(require_feature("attendance"))])
 def get_child_attendance(
     child_id: int,
     current_user: User = Depends(require_roles(["PARENT"])),
@@ -98,7 +98,7 @@ def get_child_attendance(
         ]
     }
 
-@router.get("/child/{child_id}/results")
+@router.get("/child/{child_id}/results", dependencies=[Depends(require_feature("exams"))])
 def get_child_results(
     child_id: int,
     current_user: User = Depends(require_roles(["PARENT"])),
@@ -127,7 +127,7 @@ def get_child_results(
         for r in results
     ]
 
-@router.get("/child/{child_id}/fees")
+@router.get("/child/{child_id}/fees", dependencies=[Depends(require_feature("finance"))])
 def get_child_fees(
     child_id: int,
     current_user: User = Depends(require_roles(["PARENT"])),
@@ -136,7 +136,7 @@ def get_child_fees(
     student = get_parent_and_child(current_user, child_id, db)
     return fee_service.get_student_fee_summary(db, student.id)
 
-@router.get("/child/{child_id}/assignments")
+@router.get("/child/{child_id}/assignments", dependencies=[Depends(require_feature("assignments"))])
 def get_child_assignments(
     child_id: int,
     current_user: User = Depends(require_roles(["PARENT"])),
@@ -149,7 +149,10 @@ def get_child_assignments(
     assignments = db.query(Assignment).options(
         joinedload(Assignment.subject),
         joinedload(Assignment.submissions)
-    ).filter(Assignment.class_id == student.class_id).all()
+    ).filter(
+        Assignment.class_id == student.class_id,
+        (Assignment.section_id.is_(None)) | (Assignment.section_id == student.section_id),
+    ).all()
 
     items = []
     for a in assignments:

@@ -2,23 +2,34 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from backend.app.models.user import User
+from backend.app.models.tenant import Tenant
 from backend.app.schemas.user import UserCreate
 from backend.app.utils.security import verify_password, get_password_hash
 
 class AuthService:
     @staticmethod
-    def authenticate_user(db: Session, username_or_email: str, password: str) -> Optional[User]:
-        user = db.query(User).filter(
+    def authenticate_user(db: Session, username_or_email: str, password: str,
+                          school_slug: Optional[str] = None) -> Optional[User]:
+        query = db.query(User).filter(
             (User.username == username_or_email) | (User.email == username_or_email)
-        ).first()
-        if not user:
+        )
+        if school_slug:
+            query = query.join(Tenant, User.tenant_id == Tenant.id).filter(Tenant.slug == school_slug)
+        matches = query.limit(2).all()
+        if len(matches) != 1:
             return None
-        if not verify_password(password, user.hashed_password):
-            return None
-        return user
+        user = matches[0]
+        if verify_password(password, user.hashed_password):
+            return user
+        return None
 
     @staticmethod
     def create_user(db: Session, user_in: UserCreate) -> User:
+        if user_in.role.upper() not in {"SCHOOL_ADMIN", "PRINCIPAL", "TEACHER", "STUDENT", "PARENT"}:
+            raise HTTPException(status_code=400, detail="Invalid school role")
+        if user_in.role.upper() == "SCHOOL_ADMIN":
+            from backend.app.services.entitlement_service import entitlement_service
+            entitlement_service.check_usage(db, "admins")
         if db.query(User).filter(User.username == user_in.username).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

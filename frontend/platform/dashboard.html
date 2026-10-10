@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Platform · School ERP</title>
+  <link rel="stylesheet" href="/frontend/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
+  <script src="/frontend/js/theme.js"></script>
+  <style>
+    .platform-layout{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:100vh}
+    .platform-rail{background:var(--sidebar-bg);color:var(--sidebar-text);padding:24px 16px}
+    .platform-brand{color:#e9f6ee;font-weight:750;letter-spacing:-.03em;padding:4px 12px 28px}
+    .platform-rail a{display:block;color:var(--sidebar-text);text-decoration:none;padding:10px 12px;border-radius:8px;margin:2px 0}
+    .platform-rail a:hover,.platform-rail a:focus-visible{background:var(--sidebar-hover);color:#fff}
+    .platform-main{min-width:0}.platform-top{display:flex;align-items:center;justify-content:space-between;padding:16px clamp(20px,3vw,40px);background:var(--surface);border-bottom:1px solid var(--border-color)}
+    .platform-content{max-width:1440px;margin:auto;padding:clamp(20px,3vw,40px)}
+    .platform-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+    .platform-stat{padding:20px}.platform-stat strong{display:block;font-size:1.9rem;line-height:1.15;letter-spacing:-.04em}.platform-stat span{color:var(--text-secondary);font-size:.82rem}
+    .platform-section{margin-top:30px}.platform-section h2{font-size:1.18rem;font-weight:700;letter-spacing:-.025em}
+    .platform-card{padding:20px}.platform-actions{display:flex;gap:8px;flex-wrap:wrap}.platform-actions .form-select{min-width:120px}
+    .platform-forms{display:grid;grid-template-columns:1fr 1fr;gap:16px}.platform-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .platform-form-grid .wide{grid-column:1/-1}.platform-form-grid label{display:block}
+    .platform-table{overflow:auto}.platform-table table{min-width:690px}
+    .platform-feedback{min-height:24px}.platform-feedback.error{color:var(--danger)}.platform-feedback.success{color:var(--success)}
+    @media(max-width:1050px){.platform-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.platform-forms{grid-template-columns:1fr}}
+    @media(max-width:720px){.platform-layout{display:block}.platform-rail{padding:12px 16px}.platform-brand{padding:2px 0 10px}.platform-rail nav{display:flex;overflow-x:auto;gap:4px}.platform-rail a{white-space:nowrap}.platform-grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:410px){.platform-grid{grid-template-columns:1fr}.platform-form-grid{grid-template-columns:1fr}.platform-form-grid .wide{grid-column:auto}}
+  </style>
+</head>
+<body>
+  <div class="platform-layout">
+    <aside class="platform-rail"><div class="platform-brand">School ERP <small>Platform</small></div><nav aria-label="Platform navigation"><a href="#overview">Overview</a><a href="#schools">Schools</a><a href="#plans">Plans</a><a href="#subscriptions">Subscriptions</a><a href="#activity">Activity</a></nav></aside>
+    <div class="platform-main">
+      <header class="platform-top"><strong>Platform workspace</strong><div class="d-flex align-items-center gap-2"><button class="btn btn-light btn-sm" type="button" onclick="schoolTheme.setPreference(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark')" aria-label="Toggle color theme">Theme</button><button class="btn btn-light btn-sm" type="button" onclick="auth.logout()">Sign out</button></div></header>
+      <main class="platform-content">
+        <section id="overview"><div class="page-header"><h1 class="page-title mb-1">Overview</h1><p class="page-subtitle mb-0">School operations across the platform</p></div><div id="feedback" class="platform-feedback" role="status" aria-live="polite"></div><div class="platform-grid" id="metrics" aria-busy="true"><div class="card platform-stat skeleton">Loading schools…</div></div></section>
+        <section id="schools" class="platform-section"><div class="d-flex justify-content-between align-items-center mb-3"><h2 class="mb-0">Schools</h2><button class="btn btn-outline-primary btn-sm" type="button" onclick="loadPlatform()">Refresh</button></div><div class="card platform-card platform-table"><table class="table mb-0"><thead><tr><th>School</th><th>Workspace</th><th>Status</th><th>Actions</th></tr></thead><tbody id="schools-body"><tr><td colspan="4">Loading schools…</td></tr></tbody></table></div></section>
+        <section id="plans" class="platform-section"><h2>Plans</h2><div class="card platform-card platform-table"><table class="table mb-0"><thead><tr><th>Plan</th><th>Price</th><th>Interval</th><th>Student limit</th><th>Status</th><th>Actions</th></tr></thead><tbody id="plans-body"><tr><td colspan="6">Loading plans…</td></tr></tbody></table></div></section>
+        <section id="subscriptions" class="platform-section"><h2>Subscriptions</h2><div class="card platform-card platform-table"><table class="table mb-0"><thead><tr><th>School ID</th><th>Plan ID</th><th>Status</th><th>Trial ends</th><th>Actions</th></tr></thead><tbody id="subscriptions-body"><tr><td colspan="5">Loading subscriptions…</td></tr></tbody></table></div></section>
+        <section id="activity" class="platform-section"><h2>Recent activity</h2><div class="card platform-card"><ul id="activity-list" class="list-unstyled mb-0"><li>Loading activity…</li></ul></div></section>
+        <section class="platform-section platform-forms" id="manage">
+          <div class="card platform-card"><h2 id="plan-form-title">Create plan</h2><p class="page-subtitle">Set the limits and trial period before onboarding a school.</p><form id="plan-form" class="platform-form-grid"><label class="wide">Plan name<input class="form-control" name="name" required minlength="2"></label><label class="wide">Description<input class="form-control" name="description"></label><label>Price<input class="form-control" name="price" type="number" min="0" step="0.01" required></label><label>Billing interval<select class="form-select" name="billing_interval"><option>MONTHLY</option><option>YEARLY</option></select></label><label>Trial days<input class="form-control" name="trial_days" type="number" min="0" max="365" value="14" required></label><label>Maximum students<input class="form-control" name="max_students" type="number" min="1" placeholder="Unlimited"></label><label>Maximum teachers<input class="form-control" name="max_teachers" type="number" min="1" placeholder="Unlimited"></label><label>Maximum admins<input class="form-control" name="max_admins" type="number" min="1" placeholder="Unlimited"></label><label>Storage bytes<input class="form-control" name="max_storage" type="number" min="1" placeholder="Unlimited"></label><label>Status<select class="form-select" name="is_active"><option value="true">Active</option><option value="false">Inactive</option></select></label><label class="wide">Features (comma separated)<input class="form-control" name="features" placeholder="attendance, assignments, reports"></label><button class="btn btn-primary wide" type="submit">Create plan</button></form></div>
+          <div class="card platform-card"><h2>Onboard school</h2><p class="page-subtitle">Create a school, administrator and trial together.</p><form id="school-form" class="platform-form-grid"><label>School name<input class="form-control" name="name" required minlength="2"></label><label>Workspace slug<input class="form-control" name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="green-valley"></label><label class="wide">School email<input class="form-control" name="email" type="email" required></label><label>Administrator name<input class="form-control" name="admin_name" required></label><label>Username<input class="form-control" name="admin_username" required></label><label>Administrator email<input class="form-control" name="admin_email" type="email" required></label><label>Password<input class="form-control" name="admin_password" type="password" minlength="12" autocomplete="new-password" required></label><label class="wide">Plan<select class="form-select" name="plan_id" id="school-plan" required></select></label><button class="btn btn-primary wide" type="submit">Create school</button></form></div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="/frontend/js/api.js"></script><script src="/frontend/js/auth.js"></script>
+  <script>
+    const platformRoles = ['PLATFORM_SUPER_ADMIN','PLATFORM_SUPPORT','PLATFORM_BILLING'];
+    if (!auth.requireAuth(platformRoles)) throw new Error('Platform access required');
+    const owner = auth.getRole() === 'PLATFORM_SUPER_ADMIN';
+    if (!owner) document.getElementById('manage').hidden = true;
+    const make = (tag, value) => { const el = document.createElement(tag); el.textContent = value ?? '—'; return el; };
+    const feedback = (message, error = false) => { const node = document.getElementById('feedback'); node.textContent = message; node.className = 'platform-feedback ' + (error ? 'error' : 'success'); };
+    const row = (body, values) => { const tr = document.createElement('tr'); values.forEach(value => tr.appendChild(make('td', value))); body.appendChild(tr); return tr; };
+    const empty = (body, columns, message) => { body.replaceChildren(); const tr = row(body, [message]); tr.firstChild.colSpan = columns; };
+    async function loadPlatform() {
+      try {
+        const [stats, schools, plans, subscriptions, activity] = await Promise.all([
+          api.get('/platform/dashboard'), api.get('/platform/schools'), api.get('/platform/plans'),
+          api.get('/platform/subscriptions'), api.get('/platform/audit')]);
+        const metrics = document.getElementById('metrics'); metrics.replaceChildren(); metrics.removeAttribute('aria-busy');
+        [['Schools', stats.total_schools], ['Active', stats.schools_by_status.ACTIVE || 0],
+         ['Trial', stats.schools_by_status.TRIAL || 0], ['Students', stats.total_students],
+         ['Teachers', stats.total_teachers], ['Suspended', stats.schools_by_status.SUSPENDED || 0],
+         ['New schools (30d)', stats.new_schools_30d], ['Captured SaaS revenue', `₹${stats.captured_saas_revenue}`]].forEach(([label, value]) => {
+          const card = document.createElement('div'); card.className = 'card platform-stat';
+          card.append(make('strong', value), make('span', label)); metrics.append(card);
+        });
+        const schoolsBody = document.getElementById('schools-body'); schoolsBody.replaceChildren();
+        if (!schools.length) empty(schoolsBody, 4, 'No schools yet. Create the first school below.');
+        schools.forEach(school => {
+          const tr = row(schoolsBody, [school.name, school.slug, school.status]); const actionCell = document.createElement('td');
+          if (owner && school.status !== 'ARCHIVED') {
+            const select = document.createElement('select'); select.className = 'form-select form-select-sm'; select.setAttribute('aria-label', `Status for ${school.name}`);
+            ['TRIAL','ACTIVE','SUSPENDED','EXPIRED','CANCELLED','ARCHIVED'].forEach(status => { const option = new Option(status, status); option.selected = status === school.status; select.add(option); });
+            select.addEventListener('change', async () => { try { await api.patch(`/platform/schools/${school.id}`, {status:select.value}); feedback(`${school.name} updated.`); await loadPlatform(); } catch(e) { feedback(e.message, true); select.value = school.status; } });
+            actionCell.append(select);
+          } else actionCell.textContent = '—'; tr.append(actionCell);
+        });
+        const plansBody = document.getElementById('plans-body'); plansBody.replaceChildren();
+        if (!plans.length) empty(plansBody, 6, 'No plans yet. Create a plan to start onboarding.');
+        plans.forEach(plan => {
+          const tr = row(plansBody, [plan.name, plan.price, plan.billing_interval, plan.max_students ?? 'Unlimited', plan.is_active ? 'Active' : 'Inactive']);
+          const cell = document.createElement('td');
+          if (owner) {
+            const edit = make('button', 'Edit'); edit.type = 'button'; edit.className = 'btn btn-outline-primary btn-sm';
+            edit.addEventListener('click', () => {
+              const form = document.getElementById('plan-form'); form.dataset.editId = plan.id;
+              for (const field of ['name','description','price','billing_interval','trial_days','max_students','max_teachers','max_admins','max_storage']) form.elements[field].value = plan[field] ?? '';
+              form.elements.is_active.value = String(plan.is_active); form.elements.features.value = (plan.features || []).join(', ');
+              document.getElementById('plan-form-title').textContent = `Edit ${plan.name}`;
+              form.querySelector('button[type=submit]').textContent = 'Save plan';
+              form.scrollIntoView({behavior:'smooth',block:'start'});
+            }); cell.append(edit);
+          } else cell.textContent = '—'; tr.append(cell);
+        });
+        const planSelect = document.getElementById('school-plan'); planSelect.replaceChildren();
+        plans.filter(plan => plan.is_active).forEach(plan => planSelect.add(new Option(plan.name, plan.id)));
+        const subsBody = document.getElementById('subscriptions-body'); subsBody.replaceChildren();
+        if (!subscriptions.length) empty(subsBody, 5, 'No subscriptions yet.');
+        subscriptions.forEach(subscription => {
+          const tr = row(subsBody, [subscription.tenant_id, subscription.plan_id, subscription.status, subscription.trial_end ? new Date(subscription.trial_end).toLocaleDateString() : '—']);
+          const cell = document.createElement('td'); cell.className = 'platform-actions';
+          if (owner) {
+            const planChoice = document.createElement('select'); planChoice.className = 'form-select form-select-sm'; planChoice.setAttribute('aria-label', `Plan for school ${subscription.tenant_id}`);
+            plans.filter(plan => plan.is_active || plan.id === subscription.plan_id).forEach(plan => planChoice.add(new Option(plan.name, plan.id)));
+            planChoice.value = String(subscription.plan_id);
+            const applyPlan = make('button','Apply plan'); applyPlan.type = 'button'; applyPlan.className = 'btn btn-outline-primary btn-sm';
+            applyPlan.addEventListener('click', async () => { try { await api.post(`/platform/schools/${subscription.tenant_id}/change-plan`, {plan_id:Number(planChoice.value)}); feedback('Plan changed.'); await loadPlatform(); } catch(error) { feedback(error.message, true); planChoice.value = String(subscription.plan_id); } });
+            cell.append(planChoice, applyPlan);
+            if (subscription.status === 'TRIALING') {
+              const extend = make('button','Extend 7 days'); extend.type = 'button'; extend.className = 'btn btn-outline-primary btn-sm';
+              extend.addEventListener('click', async () => { try { await api.post(`/platform/schools/${subscription.tenant_id}/extend-trial`, {days:7}); feedback('Trial extended by seven days.'); await loadPlatform(); } catch(error) { feedback(error.message,true); } });
+              cell.append(extend);
+            }
+          } else cell.textContent = '—'; tr.append(cell);
+        });
+        const activityList = document.getElementById('activity-list'); activityList.replaceChildren();
+        if (!activity.length) activityList.append(make('li', 'No platform activity yet.'));
+        activity.slice(0, 8).forEach(event => { const li = make('li', `${event.action.replaceAll('_', ' ')} · ${new Date(event.created_at).toLocaleString()}`); li.className = 'py-2 border-bottom'; activityList.append(li); });
+      } catch (error) { feedback(error.message || 'Unable to load platform data. Try refreshing.', true); }
+    }
+    document.getElementById('plan-form').addEventListener('submit', async event => {
+      event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('button[type=submit]'); button.disabled = true;
+      const raw = Object.fromEntries(new FormData(form)); const payload = {...raw, trial_days: Number(raw.trial_days), is_active:raw.is_active === 'true', features: raw.features.split(',').map(x => x.trim()).filter(Boolean)};
+      for (const field of ['max_students','max_teachers','max_admins','max_storage']) payload[field] = raw[field] ? Number(raw[field]) : null;
+      try {
+        const editId = form.dataset.editId;
+        if (editId) await api.put(`/platform/plans/${editId}`, payload); else await api.post('/platform/plans', payload);
+        form.reset(); delete form.dataset.editId; document.getElementById('plan-form-title').textContent = 'Create plan'; button.textContent = 'Create plan';
+        feedback(editId ? 'Plan saved.' : 'Plan created.'); await loadPlatform();
+      } catch(error) { feedback(error.message, true); } finally { button.disabled = false; }
+    });
+    document.getElementById('school-form').addEventListener('submit', async event => {
+      event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('button[type=submit]'); button.disabled = true;
+      const payload = Object.fromEntries(new FormData(form)); payload.plan_id = Number(payload.plan_id);
+      try { await api.post('/platform/schools', payload); form.reset(); feedback('School created and trial started.'); await loadPlatform(); } catch(error) { feedback(error.message, true); } finally { button.disabled = false; }
+    });
+    loadPlatform();
+  </script>
+</body>
+</html>

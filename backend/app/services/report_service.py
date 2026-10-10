@@ -7,6 +7,7 @@ from backend.app.models.student import Student
 from backend.app.models.teacher import Teacher
 from backend.app.models.parent import Parent
 from backend.app.models.class_model import ClassModel
+from backend.app.models.academic_year import AcademicYear
 from backend.app.models.attendance import Attendance
 from backend.app.models.fee import Fee
 from backend.app.models.payment import Payment
@@ -43,12 +44,14 @@ class ReportService:
 
         recent_notices = db.query(Notice).order_by(Notice.publish_date.desc()).limit(5).all()
         recent_logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(10).all()
+        active_year = db.query(AcademicYear).filter(AcademicYear.is_current.is_(True)).first()
 
         return {
             "total_students": total_students,
             "total_teachers": total_teachers,
             "total_parents": total_parents,
             "total_classes": total_classes,
+            "academic_year": active_year.name if active_year else None,
             "total_fees_expected": round(float(total_fees), 2),
             "total_fees_collected": round(float(total_collected), 2),
             "today_attendance": {

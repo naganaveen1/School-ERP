@@ -8,10 +8,12 @@ from backend.app.models.academic_year import AcademicYear
 from backend.app.schemas.student import StudentCreate, StudentUpdate
 from backend.app.services.auth_service import auth_service
 from backend.app.schemas.user import UserCreate
+from backend.app.services.entitlement_service import entitlement_service
 
 class StudentService:
     @staticmethod
     def create_student(db: Session, student_in: StudentCreate) -> Student:
+        entitlement_service.check_usage(db, "students")
         # Check admission number uniqueness
         if db.query(Student).filter(Student.admission_number == student_in.admission_number).first():
             raise HTTPException(

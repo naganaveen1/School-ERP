@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/frontend/css/forms.css">
   <link rel="stylesheet" href="/frontend/css/tables.css">
   <link rel="stylesheet" href="/frontend/css/responsive.css">
+  <script src="/frontend/js/theme.js"></script>
+  <link rel="stylesheet" href="/frontend/css/design-system.css">
 </head>
 <body>
   <div class="app-wrapper">
@@ -168,7 +170,7 @@
     let search = '';
     let allStudents = [];
 
-    if (permissions.enforcePageAccess(['ADMIN', 'PRINCIPAL'])) {
+    if (permissions.enforcePageAccess(['SCHOOL_ADMIN', 'PRINCIPAL'])) {
       components.renderLayout('Parents & Guardians');
       loadParents(1);
       loadAllStudentsForLinking();

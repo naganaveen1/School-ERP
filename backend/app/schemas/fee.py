@@ -1,13 +1,13 @@
 from datetime import date, datetime
 from typing import Optional, List, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class FeeBase(BaseModel):
     title: str
     fee_type: str = "Tuition"
     class_id: Optional[int] = None
     academic_year_id: Optional[int] = None
-    amount: float
+    amount: float = Field(gt=0)
     due_date: date
     installment_name: Optional[str] = "Annual"
     installment_number: Optional[int] = 1
@@ -39,8 +39,8 @@ class FeeResponse(FeeBase):
 class PaymentCreate(BaseModel):
     fee_id: int
     student_id: int
-    amount_paid: float
-    discount_amount: Optional[float] = 0.0
+    amount_paid: float = Field(gt=0)
+    discount_amount: Optional[float] = Field(default=0.0, ge=0)
     payment_date: Optional[date] = None
     payment_method: str = "Cash"
     payment_status: str = "PAID"
@@ -91,8 +91,8 @@ class StudentFeeSummary(BaseModel):
 
 class RazorpayCreateOrderRequest(BaseModel):
     fee_id: int
-    amount: float
-    student_id: Optional[int] = None
+    amount: float  # Legacy client field; server recalculates the balance.
+    student_id: int
 
 class RazorpayCreateOrderResponse(BaseModel):
     order_id: str

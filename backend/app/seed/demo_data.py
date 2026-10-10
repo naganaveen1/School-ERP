@@ -4,7 +4,7 @@ DEMO_USERS = [
         "email": "admin@schoolerp.com",
         "password": "Password123!",
         "full_name": "System Administrator",
-        "role": "ADMIN",
+        "role": "SCHOOL_ADMIN",
         "phone": "+1-555-0100"
     },
     {
@@ -85,7 +85,7 @@ DEMO_DEPARTMENTS = [
 ]
 
 DEMO_ROLES = [
-    {"name": "ADMIN", "description": "Full system administrator access"},
+    {"name": "SCHOOL_ADMIN", "description": "Full system administrator access"},
     {"name": "PRINCIPAL", "description": "Executive school management and oversight"},
     {"name": "TEACHER", "description": "Faculty teaching and class management"},
     {"name": "STUDENT", "description": "Enrolled student access"},

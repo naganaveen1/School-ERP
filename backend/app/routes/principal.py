@@ -13,14 +13,14 @@ router = APIRouter(prefix="/principal", tags=["Principal"])
 
 @router.get("/dashboard")
 def get_principal_dashboard(
-    current_user: User = Depends(require_roles(["PRINCIPAL", "ADMIN"])),
+    current_user: User = Depends(require_roles(["PRINCIPAL", "SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     return report_service.get_principal_dashboard(db)
 
 @router.get("/leave-requests")
 def get_leave_requests(
-    current_user: User = Depends(require_roles(["PRINCIPAL", "ADMIN"])),
+    current_user: User = Depends(require_roles(["PRINCIPAL", "SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     leaves = db.query(Leave).order_by(Leave.created_at.desc()).all()
@@ -42,7 +42,7 @@ def get_leave_requests(
 
 @router.get("/complaints")
 def get_complaints(
-    current_user: User = Depends(require_roles(["PRINCIPAL", "ADMIN"])),
+    current_user: User = Depends(require_roles(["PRINCIPAL", "SCHOOL_ADMIN"])),
     db: Session = Depends(get_db)
 ):
     complaints = db.query(Complaint).order_by(Complaint.created_at.desc()).all()

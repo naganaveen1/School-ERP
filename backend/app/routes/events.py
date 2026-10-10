@@ -27,7 +27,7 @@ def list_events(
     db: Session = Depends(get_db)
 ):
     query = db.query(Event).options(joinedload(Event.creator))
-    if current_user.role not in ["ADMIN", "PRINCIPAL"]:
+    if current_user.role not in ["SCHOOL_ADMIN", "PRINCIPAL"]:
         query = query.filter(
             (Event.target_audience == "ALL") | (Event.target_audience == current_user.role)
         )
@@ -53,7 +53,7 @@ def list_events(
 @router.post("")
 def create_event(
     event_in: EventCreate,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     ev = Event(
@@ -83,7 +83,7 @@ def create_event(
 @router.delete("/{event_id}")
 def delete_event(
     event_id: int,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     ev = db.query(Event).filter(Event.id == event_id).first()

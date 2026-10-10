@@ -72,7 +72,7 @@ def get_my_leaves(
 @router.get("")
 def list_all_leaves(
     status_filter: Optional[str] = None,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     query = db.query(Leave).options(joinedload(Leave.user))
@@ -101,7 +101,7 @@ def list_all_leaves(
 def review_leave(
     leave_id: int,
     review_in: LeaveReviewRequest,
-    current_user: User = Depends(require_roles(["ADMIN", "PRINCIPAL"])),
+    current_user: User = Depends(require_roles(["SCHOOL_ADMIN", "PRINCIPAL"])),
     db: Session = Depends(get_db)
 ):
     leave = db.query(Leave).filter(Leave.id == leave_id).first()
